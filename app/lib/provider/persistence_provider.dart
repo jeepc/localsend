@@ -5,8 +5,12 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:localsend_app/gen/strings.g.dart';
+import 'package:localsend_app/model/persistence/chat_message.dart';
 import 'package:localsend_app/model/persistence/color_mode.dart';
 import 'package:localsend_app/model/persistence/favorite_device.dart';
+import 'package:localsend_app/model/persistence/friend.dart';
+import 'package:localsend_app/model/persistence/known_network.dart';
+import 'package:localsend_app/model/persistence/pending_friend_request.dart';
 import 'package:localsend_app/model/persistence/quick_save_mode.dart';
 import 'package:localsend_app/model/persistence/receive_history_entry.dart';
 import 'package:localsend_app/model/send_mode.dart';
@@ -58,6 +62,14 @@ const _receiveHistory = 'ls_receive_history';
 // Favorites
 const _favorites = 'ls_favorites';
 
+// Chat: friends, their LAN groups and the outgoing friend requests awaiting an answer
+const _friends = 'ls_friends';
+const _knownNetworks = 'ls_known_networks';
+const _pendingFriendRequests = 'ls_pending_friend_requests';
+
+// One key per conversation, so appending a message does not rewrite all the others.
+String _chatKey(String fingerprint) => 'ls_chat_$fingerprint';
+
 // App Window Offset and Size info
 const _windowOffsetX = 'ls_window_offset_x';
 const _windowOffsetY = 'ls_window_offset_y';
@@ -91,6 +103,7 @@ const _deviceType = 'ls_device_type';
 const _deviceModel = 'ls_device_model';
 const _shareViaLinkAutoAccept = 'ls_share_via_link_auto_accept';
 const _receiveViaLinkAutoAccept = 'ls_receive_via_link_auto_accept';
+const _autoAcceptFriendFiles = 'ls_auto_accept_friend_files';
 const _createChecksums = 'ls_create_checksums';
 const _verifyChecksums = 'ls_verify_checksums';
 const _advancedSettingsKey = 'ls_advanced_settings';
@@ -272,6 +285,50 @@ class PersistenceService {
     await _prefs.setStringList(_favorites, favoritesRaw);
   }
 
+  List<Friend> getFriends() {
+    final friendsRaw = _prefs.getStringList(_friends) ?? [];
+    return friendsRaw.map((entry) => Friend.fromJson(jsonDecode(entry))).toList();
+  }
+
+  Future<void> setFriends(List<Friend> entries) async {
+    final friendsRaw = entries.map((entry) => jsonEncode(entry.toJson())).toList();
+    await _prefs.setStringList(_friends, friendsRaw);
+  }
+
+  List<KnownNetwork> getKnownNetworks() {
+    final networksRaw = _prefs.getStringList(_knownNetworks) ?? [];
+    return networksRaw.map((entry) => KnownNetwork.fromJson(jsonDecode(entry))).toList();
+  }
+
+  Future<void> setKnownNetworks(List<KnownNetwork> entries) async {
+    final networksRaw = entries.map((entry) => jsonEncode(entry.toJson())).toList();
+    await _prefs.setStringList(_knownNetworks, networksRaw);
+  }
+
+  List<PendingFriendRequest> getPendingFriendRequests() {
+    final requestsRaw = _prefs.getStringList(_pendingFriendRequests) ?? [];
+    return requestsRaw.map((entry) => PendingFriendRequest.fromJson(jsonDecode(entry))).toList();
+  }
+
+  Future<void> setPendingFriendRequests(List<PendingFriendRequest> entries) async {
+    final requestsRaw = entries.map((entry) => jsonEncode(entry.toJson())).toList();
+    await _prefs.setStringList(_pendingFriendRequests, requestsRaw);
+  }
+
+  List<ChatMessage> getChatMessages(String fingerprint) {
+    final messagesRaw = _prefs.getStringList(_chatKey(fingerprint)) ?? [];
+    return messagesRaw.map((entry) => ChatMessage.fromJson(jsonDecode(entry))).toList();
+  }
+
+  Future<void> setChatMessages(String fingerprint, List<ChatMessage> entries) async {
+    final messagesRaw = entries.map((entry) => jsonEncode(entry.toJson())).toList();
+    await _prefs.setStringList(_chatKey(fingerprint), messagesRaw);
+  }
+
+  Future<void> removeChatMessages(String fingerprint) async {
+    await _prefs.remove(_chatKey(fingerprint));
+  }
+
   String getShowToken() {
     return _prefs.getString(_showToken)!;
   }
@@ -391,6 +448,17 @@ class PersistenceService {
 
   Future<void> setReceiveViaLinkAutoAccept(bool receiveViaLinkAutoAccept) async {
     await _prefs.setBool(_receiveViaLinkAutoAccept, receiveViaLinkAutoAccept);
+  }
+
+  /// Whether files sent by a friend skip the accept dialog.
+  /// Off by default: being someone's friend must not by itself grant write
+  /// access to their disk.
+  bool getAutoAcceptFriendFiles() {
+    return _prefs.getBool(_autoAcceptFriendFiles) ?? false;
+  }
+
+  Future<void> setAutoAcceptFriendFiles(bool autoAcceptFriendFiles) async {
+    await _prefs.setBool(_autoAcceptFriendFiles, autoAcceptFriendFiles);
   }
 
   bool getCreateChecksums() {

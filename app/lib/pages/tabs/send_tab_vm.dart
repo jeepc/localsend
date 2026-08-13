@@ -1,12 +1,22 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/model/cross_file.dart';
 import 'package:localsend_app/model/persistence/favorite_device.dart';
+import 'package:localsend_app/model/persistence/friend.dart';
 import 'package:localsend_app/model/send_mode.dart';
+import 'package:localsend_app/pages/home_page.dart';
+import 'package:localsend_app/pages/home_page_controller.dart';
 import 'package:localsend_app/pages/progress_page.dart';
 import 'package:localsend_app/pages/send_page.dart';
 import 'package:localsend_app/pages/tabs/send_tab.dart';
 import 'package:localsend_app/pages/web_share_page.dart';
+import 'package:localsend_app/provider/chat/chat_controller.dart';
+import 'package:localsend_app/provider/chat/chat_provider.dart';
+import 'package:localsend_app/provider/chat/friends_provider.dart';
+import 'package:localsend_app/provider/chat/network_group_controller.dart';
+import 'package:localsend_app/provider/chat/pending_friend_requests_provider.dart';
+import 'package:localsend_app/provider/chat/selected_friend_provider.dart';
 import 'package:localsend_app/provider/favorites_provider.dart';
 import 'package:localsend_app/provider/local_ip_provider.dart';
 import 'package:localsend_app/provider/network/nearby_devices_provider.dart';
@@ -28,11 +38,21 @@ class SendTabVm {
   final List<String> localIps;
   final Iterable<Device> nearbyDevices;
   final List<FavoriteDevice> favoriteDevices;
+  final List<Friend> friends;
+
+  /// Fingerprints with a *recent* friend request still awaiting an answer;
+  /// their button is hidden so the user does not fire off duplicates. Stale
+  /// ones are excluded, otherwise a handshake that never completed would hide
+  /// the button forever.
+  final Set<String> pendingFriendRequests;
+
   final Future<void> Function(BuildContext context) onTapAddress;
   final Future<void> Function(BuildContext context) onTapFavorite;
   final Future<void> Function(BuildContext context, SendMode mode) onTapSendMode;
   final Future<void> Function(BuildContext context, Device device) onTapDevice;
   final Future<void> Function(BuildContext context, Device device) onTapDeviceMultiSend;
+  final Future<void> Function(BuildContext context, Device device) onTapAddFriend;
+  final void Function(Device device) onTapChat;
 
   const SendTabVm({
     required this.sendMode,
@@ -40,12 +60,27 @@ class SendTabVm {
     required this.localIps,
     required this.nearbyDevices,
     required this.favoriteDevices,
+    required this.friends,
+    required this.pendingFriendRequests,
     required this.onTapAddress,
     required this.onTapFavorite,
     required this.onTapSendMode,
     required this.onTapDevice,
     required this.onTapDeviceMultiSend,
+    required this.onTapAddFriend,
+    required this.onTapChat,
   });
+
+  /// Whether an add-friend button should be offered for [device].
+  bool canAddFriend(Device device) {
+    return device.fingerprint.isNotEmpty && device.ip != null && !isFriend(device) && !pendingFriendRequests.contains(device.fingerprint);
+  }
+
+  /// Whether [device] is already a friend. Surfaced on the tile so the missing
+  /// add button has a visible reason.
+  bool isFriend(Device device) {
+    return friends.any((f) => f.fingerprint == device.fingerprint);
+  }
 }
 
 final sendTabVmProvider = ViewProvider((ref) {
@@ -54,6 +89,8 @@ final sendTabVmProvider = ViewProvider((ref) {
   final localIps = ref.watch(localIpProvider).localIps;
   final nearbyDevices = ref.watch(nearbyDevicesProvider).allDevices.values;
   final favoriteDevices = ref.watch(favoritesProvider);
+  final friends = ref.watch(friendsProvider);
+  final pendingFriendRequests = ref.watch(pendingFriendRequestsProvider).active.map((e) => e.fingerprint).toSet();
 
   return SendTabVm(
     sendMode: sendMode,
@@ -61,6 +98,8 @@ final sendTabVmProvider = ViewProvider((ref) {
     localIps: localIps,
     nearbyDevices: nearbyDevices,
     favoriteDevices: favoriteDevices,
+    friends: friends,
+    pendingFriendRequests: pendingFriendRequests,
     onTapAddress: (context) async {
       var files = ref.read(selectedSendingFilesProvider);
       if (files.isEmpty) {
@@ -217,6 +256,29 @@ final sendTabVmProvider = ViewProvider((ref) {
             background: true,
           );
     },
+    onTapChat: (device) {
+      // Open the conversation the shortcut promises, not just the tab.
+      ref.notifier(selectedFriendProvider).select(device.fingerprint);
+      ref.redux(chatProvider).dispatch(LoadConversationAction(device.fingerprint));
+      ref.redux(homePageControllerProvider).dispatch(ChangeTabAction(HomeTab.chat));
+    },
+    onTapAddFriend: (context, device) async {
+      // Resolve the group first: it may ask the user to name this network, and
+      // doing that before the request keeps the whole flow in one interaction.
+      final networkId = await ref.global.dispatchAsync(EnsureCurrentNetworkGroupAction());
+      final delivered = await ref.global.dispatchAsync(SendFriendRequestAction(device, networkId: networkId));
+
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            delivered ? t.dialogs.friendRequest.sent(alias: device.alias) : t.dialogs.friendRequest.failed(alias: device.alias),
+          ),
+        ),
+      );
+    },
   );
 });
 
@@ -227,8 +289,10 @@ class SendTabInitAction extends AsyncGlobalAction {
 
   @override
   Future<void> reduce() async {
-    final devices = ref.read(nearbyDevicesProvider).devices;
-    if (devices.isEmpty) {
+    // Not "are there devices": the chat presence heartbeat also registers
+    // devices, but only the friends it probes, so a filled list is no longer
+    // proof that the network was swept.
+    if (!ref.read(nearbyDevicesProvider).initialScanDone) {
       await dispatchAsync(StartSmartScan());
     }
   }

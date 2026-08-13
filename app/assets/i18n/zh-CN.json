@@ -40,6 +40,31 @@
     "unknown": "未知",
     "noItemInClipboard": "剪贴板为空"
   },
+  "chatTab": {
+    "title": "聊天",
+    "noFriends": {
+      "title": "还没有聊天",
+      "description": "在“发送”页点击设备上的加好友图标，对方同意后即可开始聊天。"
+    },
+    "selectFriend": "选择一位好友开始聊天",
+    "openChat": "打开聊天",
+    "search": "搜索",
+    "ungrouped": "未分组",
+    "otherNetworks": "其他网络",
+    "inputHint": "输入消息",
+    "sendFile": "发送文件",
+    "sendImage": "发送图片",
+    "notDelivered": "未送达",
+    "resend": "重发",
+    "offlineHint": "当前网络下无法连接",
+    "refresh": "刷新",
+    "checking": "正在检测连接…",
+    "fileMessage": "文件",
+    "fileMissing": "文件不存在，发送失败",
+    "clearConversation": "清空聊天记录",
+    "emptyConversation": "还没有消息",
+    "regroup": "移动到其他分组"
+  },
   "receiveTab": {
     "title": "接收",
     "infoBox": {
@@ -122,7 +147,8 @@
       "downloads": "(下载)",
       "saveToGallery": "保存到相册",
       "saveToHistory": "保存到历史记录",
-      "verifyChecksums": "接收文件时验证校验和"
+      "verifyChecksums": "接收文件时验证校验和",
+      "autoAcceptFriendFiles": "自动接收好友发来的文件"
     },
     "send": {
       "title": "发送",
@@ -518,6 +544,35 @@
     },
     "zoom": {
       "title": "URL"
+    },
+    "friendRequest": {
+      "title": "好友请求",
+      "content": "{alias} 请求添加你为好友。",
+      "sent": "已向 {alias} 发送好友请求。",
+      "failed": "无法连接 {alias}。",
+      "declinedByPeer": "{alias} 拒绝了你的好友请求。",
+      "alreadyFriend": "{alias} 已经是你的好友。",
+      "answerFailed": "未能把同意结果发送给 {alias}，对方不会看到这段好友关系。"
+    },
+    "networkName": {
+      "title": "为当前网络命名",
+      "description": "好友会按添加时所处的网络环境分组。",
+      "hint": "网络名称",
+      "suggestions": [
+        "家里",
+        "公司",
+        "咖啡厅"
+      ]
+    },
+    "friendEdit": {
+      "title": "编辑好友",
+      "alias": "备注名",
+      "network": "分组",
+      "noGroup": "@:chatTab.ungrouped"
+    },
+    "friendDelete": {
+      "title": "删除好友",
+      "content": "确定删除 {alias}？聊天记录也会一并删除。"
     }
   },
   "sanitization": {

@@ -27,12 +27,18 @@ class HttpClientCollection {
   /// The check happens during the TLS handshake, so a different peer never
   /// receives the request. Use this for everything that carries file data or
   /// belongs to a session with a device the user has picked.
-  RsHttpClient pinnedTo(String fingerprint) {
+  ///
+  /// [timeoutMs] bounds the request. File transfers leave it unset because
+  /// prepare-upload legitimately blocks until the user accepts; chat messages
+  /// set it, since they are auto-accepted and a slow answer means the peer is
+  /// gone rather than thinking.
+  RsHttpClient pinnedTo(String fingerprint, {int? timeoutMs}) {
     return createClient(
       privateKey: _privateKey,
       cert: _certificate,
       version: LsHttpClientVersion.v2,
       expectedFingerprint: fingerprint,
+      timeoutMs: timeoutMs,
     );
   }
 }

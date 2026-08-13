@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:localsend_app/provider/favorites_provider.dart';
 import 'package:localsend_app/provider/local_ip_provider.dart';
 import 'package:localsend_app/provider/network/nearby_devices_provider.dart';
+import 'package:localsend_app/provider/network_identity_provider.dart';
 import 'package:localsend_app/provider/settings_provider.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 
@@ -16,6 +17,11 @@ class StartSmartScan extends AsyncGlobalAction {
 
   @override
   Future<void> reduce() async {
+    // Windows gets no connectivity change events (see [InitLocalIpAction]), so
+    // a scan is the most reliable moment to notice we moved to another LAN.
+    // ignore: unawaited_futures
+    ref.redux(networkIdentityProvider).dispatchAsync(RefreshNetworkIdentityAction());
+
     final favorites = ref.read(favoritesProvider);
     final settings = ref.read(settingsProvider);
     final networkInterfaces = ref.read(localIpProvider).localIps.take(maxInterfaces).toList();

@@ -32,6 +32,10 @@ class SendSessionState with SendSessionStateMappable implements SessionState {
   final List<SendingTask>? sendingTasks; // used to cancel tasks
   final String? errorMessage;
 
+  /// Set when this session retries a chat message: the outcome updates that
+  /// bubble instead of appending a new one.
+  final String? chatMessageId;
+
   const SendSessionState({
     required this.sessionId,
     required this.remoteSessionId,
@@ -44,6 +48,7 @@ class SendSessionState with SendSessionStateMappable implements SessionState {
     required this.endTime,
     required this.sendingTasks,
     required this.errorMessage,
+    required this.chatMessageId,
   });
 
   /// Custom toString() to avoid printing the bytes.
@@ -51,7 +56,7 @@ class SendSessionState with SendSessionStateMappable implements SessionState {
   /// SendingFile.
   @override
   String toString() {
-    return 'SendSessionState(sessionId: $sessionId, remoteSessionId: $remoteSessionId, background: $background, status: $status, target: $target, files: $files, hashedFileCount: $hashedFileCount, startTime: $startTime, endTime: $endTime, sendingTasks: $sendingTasks, errorMessage: $errorMessage)';
+    return 'SendSessionState(sessionId: $sessionId, remoteSessionId: $remoteSessionId, background: $background, status: $status, target: $target, files: $files, hashedFileCount: $hashedFileCount, startTime: $startTime, endTime: $endTime, sendingTasks: $sendingTasks, errorMessage: $errorMessage, chatMessageId: $chatMessageId)';
   }
 }
 

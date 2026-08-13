@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:localsend_app/model/cross_file.dart';
+import 'package:localsend_app/model/persistence/chat_message.dart';
 import 'package:localsend_app/model/send_mode.dart';
 import 'package:localsend_app/model/state/send/send_session_state.dart';
 import 'package:localsend_app/model/state/send/sending_file.dart';
@@ -9,6 +10,8 @@ import 'package:localsend_app/pages/home_page.dart';
 import 'package:localsend_app/pages/home_page_controller.dart';
 import 'package:localsend_app/pages/progress_page.dart';
 import 'package:localsend_app/pages/send_page.dart';
+import 'package:localsend_app/provider/chat/chat_controller.dart';
+import 'package:localsend_app/provider/chat/chat_provider.dart';
 import 'package:localsend_app/provider/device_info_provider.dart';
 import 'package:localsend_app/provider/file_transfer_provider.dart';
 import 'package:localsend_app/provider/http_provider.dart';
@@ -59,6 +62,14 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
   /// Session ID -> Cancel token
   final _prepareUploadCancelTokens = <String, rust_cancel.RsCancellationToken>{};
 
+  /// Chat bubbles created for the files of a session.
+  /// Session ID -> (file ID -> chat message ID)
+  ///
+  /// A file can be reported more than once — a retry from the progress page
+  /// finishes the session a second time — so its bubble is moved to the new
+  /// status instead of a second one being appended.
+  final _chatMessageIds = <String, Map<String, String>>{};
+
   @override
   Map<String, SendSessionState> init() {
     return {};
@@ -85,15 +96,41 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
   /// Starts a session.
   /// If [background] is true, then the session closes itself on success and no pages will be open
   /// If [background] is false, then this method will open pages by itself and waits for user input to close the session.
+  ///
+  /// [chatMessageId] marks the session as the retry of a chat message: instead
+  /// of a new bubble, that message is moved to sent or failed.
   Future<void> startSession({
     required Device target,
     required List<CrossFile> files,
     required bool background,
+    String? chatMessageId,
+  }) async {
+    final sessionId = _uuid.v4();
+    try {
+      await _startSession(
+        sessionId: sessionId,
+        target: target,
+        files: files,
+        background: background,
+        chatMessageId: chatMessageId,
+      );
+    } finally {
+      // Every failure branch of _startSession returns before the transfer even
+      // starts, so files that never got a bubble are reported as failed here.
+      _recordUnreportedFilesAsFailed(sessionId);
+    }
+  }
+
+  Future<void> _startSession({
+    required String sessionId,
+    required Device target,
+    required List<CrossFile> files,
+    required bool background,
+    required String? chatMessageId,
   }) async {
     // Pinned to the device the user picked, so the request is not sent at all
     // if someone else answers on that address.
     final client = ref.read(httpProvider).pinnedTo(target.fingerprint);
-    final sessionId = _uuid.v4();
     final createChecksums = ref.read(settingsProvider).createChecksums;
 
     // The ids are assigned upfront, so the checksums calculated below
@@ -143,6 +180,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
         endTime: null,
         sendingTasks: [],
         errorMessage: null,
+        chatMessageId: chatMessageId,
       ),
     );
 
@@ -514,6 +552,8 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     if (state[sessionId]!.status != SessionStatus.sending) {
       _logger.info('Transfer was canceled.');
     } else {
+      _recordFilesToFriend(sessionState);
+
       final hasError = ref.read(fileTransferProvider).getStatuses(sessionId).any((status) => status == FileStatus.failed);
       if (!hasError && sessionState.background == true) {
         // close session because everything is fine and it is in background
@@ -536,6 +576,98 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
         }
       }
     }
+  }
+
+  /// Mirrors the files of a finished session into the conversation when the
+  /// target is a friend.
+  ///
+  /// File messages carry no protocol marker: any file exchanged with a friend
+  /// belongs to that chat, which is what the user expects to see. The chat
+  /// action itself ignores non-friends, so no check is needed here.
+  ///
+  /// Files that did not arrive are recorded as well, as failed: a file that
+  /// silently vanishes is worse than one the user can see and retry.
+  void _recordFilesToFriend(SendSessionState sessionState) {
+    final transfer = ref.read(fileTransferProvider);
+    for (final sendingFile in sessionState.files.values) {
+      final delivered = transfer.getStatus(sessionId: sessionState.sessionId, fileId: sendingFile.file.id) == FileStatus.finished;
+      _recordFileToFriend(
+        sessionState,
+        sendingFile,
+        delivered ? ChatMessageStatus.sent : ChatMessageStatus.failed,
+      );
+    }
+  }
+
+  /// Reports the files of a session that never reached [_finish], and therefore
+  /// have no bubble yet, as failed. Files already reported keep their status.
+  void _recordUnreportedFilesAsFailed(String sessionId) {
+    final sessionState = state[sessionId];
+    if (sessionState == null) {
+      // Canceled and cleaned up; there is nothing left to report.
+      return;
+    }
+    if (sessionState.status == SessionStatus.canceledBySender) {
+      // The user aborted it themselves, so there is no failure to report.
+      return;
+    }
+
+    final recorded = _chatMessageIds[sessionId];
+    for (final sendingFile in sessionState.files.values) {
+      if (recorded != null && recorded.containsKey(sendingFile.file.id)) {
+        continue;
+      }
+      _recordFileToFriend(sessionState, sendingFile, ChatMessageStatus.failed);
+    }
+  }
+
+  void _recordFileToFriend(SendSessionState sessionState, SendingFile sendingFile, ChatMessageStatus status) {
+    if (sendingFile.file.fileType == FileType.text && sendingFile.file.preview != null) {
+      // A plain text "message" transfer, not a file the user picked.
+      return;
+    }
+
+    final messageIds = _chatMessageIds.putIfAbsent(sessionState.sessionId, () {
+      final retriedMessageId = sessionState.chatMessageId;
+      if (retriedMessageId == null) {
+        return {};
+      }
+      // The session retries an existing bubble, so its single file already has one.
+      return {for (final fileId in sessionState.files.keys) fileId: retriedMessageId};
+    });
+
+    final existingMessageId = messageIds[sendingFile.file.id];
+    if (existingMessageId != null) {
+      unawaited(
+        ref
+            .redux(chatProvider)
+            .dispatchAsync(
+              UpdateMessageStatusAction(
+                fingerprint: sessionState.target.fingerprint,
+                messageId: existingMessageId,
+                status: status,
+              ),
+            ),
+      );
+      return;
+    }
+
+    final messageId = _uuid.v4();
+    messageIds[sendingFile.file.id] = messageId;
+    unawaited(
+      ref.global.dispatchAsync(
+        RecordFileMessageAction(
+          fingerprint: sessionState.target.fingerprint,
+          outgoing: true,
+          fileName: sendingFile.file.fileName,
+          fileSize: sendingFile.file.size,
+          filePath: sendingFile.path,
+          isImage: sendingFile.file.fileType == FileType.image,
+          status: status,
+          messageId: messageId,
+        ),
+      ),
+    );
   }
 
   final uriContent = UriContent();
@@ -783,6 +915,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     TransferNotification.stop(sessionId);
     _hashCancelTokens.remove(sessionId)?.cancel();
     _prepareUploadCancelTokens.remove(sessionId)?.cancel();
+    _chatMessageIds.remove(sessionId);
     state = state.removeSession(ref, sessionId);
     if (sessionState.status == SessionStatus.finished && ref.read(settingsProvider).sendMode == SendMode.single) {
       // clear selected files
@@ -802,6 +935,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       cancelToken.cancel();
     }
     _prepareUploadCancelTokens.clear();
+    _chatMessageIds.clear();
     state = {};
     ref.notifier(fileTransferProvider).removeAllSessions();
   }

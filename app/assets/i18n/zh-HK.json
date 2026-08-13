@@ -40,6 +40,31 @@
     "unknown": "未知",
     "noItemInClipboard": "剪貼簿冇嘢。"
   },
+  "chatTab": {
+    "title": "聊天",
+    "noFriends": {
+      "title": "還沒有聊天",
+      "description": "在「傳送」頁點擊裝置上的加好友圖示，對方同意後即可開始聊天。"
+    },
+    "selectFriend": "選擇一位好友開始聊天",
+    "openChat": "開啟聊天",
+    "search": "搜尋",
+    "ungrouped": "未分組",
+    "otherNetworks": "其他網絡",
+    "inputHint": "輸入訊息",
+    "sendFile": "傳送檔案",
+    "sendImage": "傳送圖片",
+    "notDelivered": "未送達",
+    "resend": "重新傳送",
+    "offlineHint": "目前網絡下無法連線",
+    "refresh": "重新整理",
+    "checking": "正在檢測連線…",
+    "fileMessage": "檔案",
+    "fileMissing": "檔案不存在，傳送失敗",
+    "clearConversation": "清空聊天記錄",
+    "emptyConversation": "還沒有訊息",
+    "regroup": "移動到其他分組"
+  },
   "receiveTab": {
     "title": "@:settingsTab.receive.title",
     "infoBox": {
@@ -122,7 +147,8 @@
       "downloads": "（下載資料夾）",
       "saveToGallery": "Save 落相簿",
       "saveToHistory": "Save 去歷史紀錄",
-      "verifyChecksums": "接收檔案嗰陣驗證 checksum"
+      "verifyChecksums": "接收檔案嗰陣驗證 checksum",
+      "autoAcceptFriendFiles": "自動接收好友傳來的檔案"
     },
     "send": {
       "title": "傳送",
@@ -452,6 +478,35 @@
     },
     "zoom": {
       "title": "網址"
+    },
+    "friendRequest": {
+      "title": "好友邀請",
+      "content": "{alias} 想要將你加為好友。",
+      "sent": "已向 {alias} 傳送好友邀請。",
+      "failed": "無法連線 {alias}。",
+      "declinedByPeer": "{alias} 拒絕了你的好友邀請。",
+      "alreadyFriend": "{alias} 已經是你的好友。",
+      "answerFailed": "未能把同意結果傳送給 {alias}，對方不會看到這段好友關係。"
+    },
+    "networkName": {
+      "title": "為目前網絡命名",
+      "description": "好友會依照加入時所在的網絡環境分組。",
+      "hint": "網絡名稱",
+      "suggestions": [
+        "家裡",
+        "公司",
+        "咖啡廳"
+      ]
+    },
+    "friendEdit": {
+      "title": "編輯好友",
+      "alias": "備註名稱",
+      "network": "分組",
+      "noGroup": "@:chatTab.ungrouped"
+    },
+    "friendDelete": {
+      "title": "刪除好友",
+      "content": "確定刪除 {alias}？聊天記錄也會一併刪除。"
     }
   },
   "sanitization": {

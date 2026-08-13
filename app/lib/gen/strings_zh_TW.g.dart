@@ -44,6 +44,8 @@ class TranslationsZhTw extends Translations with BaseTranslations<AppLocale, Tra
   @override
   late final Translations$general$zh_TW general = Translations$general$zh_TW.internal(_root);
   @override
+  late final Translations$chatTab$zh_TW chatTab = Translations$chatTab$zh_TW.internal(_root);
+  @override
   late final Translations$receiveTab$zh_TW receiveTab = Translations$receiveTab$zh_TW.internal(_root);
   @override
   late final Translations$sendTab$zh_TW sendTab = Translations$sendTab$zh_TW.internal(_root);
@@ -178,6 +180,55 @@ class Translations$general$zh_TW extends Translations$general$en {
   String get unknown => '未知';
   @override
   String get noItemInClipboard => '剪貼簿中沒有內容。';
+}
+
+// Path: chatTab
+class Translations$chatTab$zh_TW extends Translations$chatTab$en {
+  Translations$chatTab$zh_TW.internal(TranslationsZhTw root) : this._root = root, super.internal(root);
+
+  final TranslationsZhTw _root; // ignore: unused_field
+
+  // Translations
+  @override
+  String get title => '聊天';
+  @override
+  late final Translations$chatTab$noFriends$zh_TW noFriends = Translations$chatTab$noFriends$zh_TW.internal(_root);
+  @override
+  String get selectFriend => '選擇一位好友開始聊天';
+  @override
+  String get openChat => '開啟聊天';
+  @override
+  String get search => '搜尋';
+  @override
+  String get ungrouped => '未分組';
+  @override
+  String get otherNetworks => '其他網路';
+  @override
+  String get inputHint => '輸入訊息';
+  @override
+  String get sendFile => '傳送檔案';
+  @override
+  String get sendImage => '傳送圖片';
+  @override
+  String get notDelivered => '未送達';
+  @override
+  String get resend => '重新傳送';
+  @override
+  String get offlineHint => '目前網路下無法連線';
+  @override
+  String get refresh => '重新整理';
+  @override
+  String get checking => '正在檢測連線…';
+  @override
+  String get fileMessage => '檔案';
+  @override
+  String get fileMissing => '檔案不存在，傳送失敗';
+  @override
+  String get clearConversation => '清空聊天記錄';
+  @override
+  String get emptyConversation => '還沒有訊息';
+  @override
+  String get regroup => '移動到其他分組';
 }
 
 // Path: receiveTab
@@ -637,6 +688,14 @@ class Translations$dialogs$zh_TW extends Translations$dialogs$en {
   late final Translations$dialogs$sendModeHelp$zh_TW sendModeHelp = Translations$dialogs$sendModeHelp$zh_TW.internal(_root);
   @override
   late final Translations$dialogs$zoom$zh_TW zoom = Translations$dialogs$zoom$zh_TW.internal(_root);
+  @override
+  late final Translations$dialogs$friendRequest$zh_TW friendRequest = Translations$dialogs$friendRequest$zh_TW.internal(_root);
+  @override
+  late final Translations$dialogs$networkName$zh_TW networkName = Translations$dialogs$networkName$zh_TW.internal(_root);
+  @override
+  late final Translations$dialogs$friendEdit$zh_TW friendEdit = Translations$dialogs$friendEdit$zh_TW.internal(_root);
+  @override
+  late final Translations$dialogs$friendDelete$zh_TW friendDelete = Translations$dialogs$friendDelete$zh_TW.internal(_root);
 }
 
 // Path: sanitization
@@ -755,6 +814,19 @@ class Translations$assetPicker$zh_TW extends Translations$assetPicker$en {
   String get sNameDurationLabel => '持續時間';
   @override
   String get sUnitAssetCountLabel => '計數';
+}
+
+// Path: chatTab.noFriends
+class Translations$chatTab$noFriends$zh_TW extends Translations$chatTab$noFriends$en {
+  Translations$chatTab$noFriends$zh_TW.internal(TranslationsZhTw root) : this._root = root, super.internal(root);
+
+  final TranslationsZhTw _root; // ignore: unused_field
+
+  // Translations
+  @override
+  String get title => '還沒有聊天';
+  @override
+  String get description => '在「傳送」頁點擊裝置上的加好友圖示，對方同意後即可開始聊天。';
 }
 
 // Path: receiveTab.infoBox
@@ -905,6 +977,8 @@ class Translations$settingsTab$receive$zh_TW extends Translations$settingsTab$re
   String get saveToHistory => '儲存至歷史記錄';
   @override
   String get verifyChecksums => '接收檔案時驗證校驗碼';
+  @override
+  String get autoAcceptFriendFiles => '自動接收好友傳來的檔案';
 }
 
 // Path: settingsTab.send
@@ -1477,6 +1551,80 @@ class Translations$dialogs$zoom$zh_TW extends Translations$dialogs$zoom$en {
   // Translations
   @override
   String get title => '網址';
+}
+
+// Path: dialogs.friendRequest
+class Translations$dialogs$friendRequest$zh_TW extends Translations$dialogs$friendRequest$en {
+  Translations$dialogs$friendRequest$zh_TW.internal(TranslationsZhTw root) : this._root = root, super.internal(root);
+
+  final TranslationsZhTw _root; // ignore: unused_field
+
+  // Translations
+  @override
+  String get title => '好友邀請';
+  @override
+  String content({required Object alias}) => '${alias} 想要將你加為好友。';
+  @override
+  String sent({required Object alias}) => '已向 ${alias} 傳送好友邀請。';
+  @override
+  String failed({required Object alias}) => '無法連線 ${alias}。';
+  @override
+  String declinedByPeer({required Object alias}) => '${alias} 拒絕了你的好友邀請。';
+  @override
+  String alreadyFriend({required Object alias}) => '${alias} 已經是你的好友。';
+  @override
+  String answerFailed({required Object alias}) => '未能把同意結果傳送給 ${alias}，對方不會看到這段好友關係。';
+}
+
+// Path: dialogs.networkName
+class Translations$dialogs$networkName$zh_TW extends Translations$dialogs$networkName$en {
+  Translations$dialogs$networkName$zh_TW.internal(TranslationsZhTw root) : this._root = root, super.internal(root);
+
+  final TranslationsZhTw _root; // ignore: unused_field
+
+  // Translations
+  @override
+  String get title => '為目前網路命名';
+  @override
+  String get description => '好友會依照加入時所在的網路環境分組。';
+  @override
+  String get hint => '網路名稱';
+  @override
+  List<String> get suggestions => [
+    '家裡',
+    '公司',
+    '咖啡廳',
+  ];
+}
+
+// Path: dialogs.friendEdit
+class Translations$dialogs$friendEdit$zh_TW extends Translations$dialogs$friendEdit$en {
+  Translations$dialogs$friendEdit$zh_TW.internal(TranslationsZhTw root) : this._root = root, super.internal(root);
+
+  final TranslationsZhTw _root; // ignore: unused_field
+
+  // Translations
+  @override
+  String get title => '編輯好友';
+  @override
+  String get alias => '備註名稱';
+  @override
+  String get network => '分組';
+  @override
+  String get noGroup => _root.chatTab.ungrouped;
+}
+
+// Path: dialogs.friendDelete
+class Translations$dialogs$friendDelete$zh_TW extends Translations$dialogs$friendDelete$en {
+  Translations$dialogs$friendDelete$zh_TW.internal(TranslationsZhTw root) : this._root = root, super.internal(root);
+
+  final TranslationsZhTw _root; // ignore: unused_field
+
+  // Translations
+  @override
+  String get title => '刪除好友';
+  @override
+  String content({required Object alias}) => '確定刪除 ${alias}？聊天記錄也會一併刪除。';
 }
 
 // Path: settingsTab.general.brightnessOptions

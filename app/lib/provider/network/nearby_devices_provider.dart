@@ -39,7 +39,9 @@ class NearbyDevicesService extends ReduxNotifier<NearbyDevicesState> {
   NearbyDevicesState init() => const NearbyDevicesState(
     runningFavoriteScan: false,
     runningIps: {},
+    initialScanDone: false,
     devices: {},
+    lastSeen: {},
     signalingDevices: {},
   );
 }
@@ -64,8 +66,12 @@ class StartDiscoveryListener extends AsyncReduxAction<NearbyDevicesService, Near
 class ClearFoundDevicesAction extends ReduxAction<NearbyDevicesService, NearbyDevicesState> {
   @override
   NearbyDevicesState reduce() {
+    // [lastSeen] deliberately survives: the scan button means "rebuild the
+    // list", not "everyone left". Dropping the stamps would flash every chat
+    // friend to offline for as long as the rescan takes.
     return state.copyWith(
       devices: {},
+      initialScanDone: false,
     );
   }
 }
@@ -87,7 +93,9 @@ class RegisterDeviceAction extends AsyncReduxAction<NearbyDevicesService, Nearby
     assert(device.ip?.isNotEmpty ?? false, 'IP must not be empty');
 
     final favoriteDevice = notifier._favoriteService.state.firstWhereOrNull((e) => e.fingerprint == device.fingerprint);
-    if (favoriteDevice != null && !favoriteDevice.customAlias) {
+    // Only on an actual change: this action now runs on every re-confirmation,
+    // and the update writes the favorites to disk.
+    if (favoriteDevice != null && !favoriteDevice.customAlias && favoriteDevice.alias != device.alias) {
       // Update existing favorite with new alias
       await external(notifier._favoriteService).dispatchAsync(UpdateFavoriteAction(favoriteDevice.copyWith(alias: device.alias)));
     } else {
@@ -95,6 +103,10 @@ class RegisterDeviceAction extends AsyncReduxAction<NearbyDevicesService, Nearby
     }
     return state.copyWith(
       devices: {...state.devices}..update(device.fingerprint, (_) => device, ifAbsent: () => device),
+      // Every confirmation lands here, including the re-confirmations of an
+      // already known device, so this is the one place that knows a device is
+      // still around.
+      lastSeen: {...state.lastSeen, device.fingerprint: DateTime.now()},
     );
   }
 }
@@ -185,6 +197,7 @@ class StartLegacyScan extends AsyncReduxAction<NearbyDevicesService, NearbyDevic
 
     return state.copyWith(
       runningIps: state.runningIps.where((ip) => ip != localIp).toSet(),
+      initialScanDone: true,
     );
   }
 }
@@ -228,7 +241,55 @@ class StartStagedScan extends AsyncReduxAction<NearbyDevicesService, NearbyDevic
 
     return state.copyWith(
       runningFavoriteScan: false,
+      initialScanDone: true,
     );
+  }
+}
+
+/// One cheap liveness round: announces this device and probes the known
+/// addresses in [channels], without ever escalating to a subnet scan.
+///
+/// Used by the chat presence heartbeat, which runs on a timer. It deliberately
+/// leaves [NearbyDevicesState.runningFavoriteScan] alone: the send tab's scan
+/// icon spins off that flag, so reusing [StartStagedScan] here would make it
+/// spin forever.
+class StartPresenceProbe extends AsyncReduxAction<NearbyDevicesService, NearbyDevicesState> {
+  /// Host and port of every peer worth probing directly, for networks that
+  /// swallow multicast.
+  final List<(String, int)> channels;
+
+  final int port;
+  final bool https;
+
+  StartPresenceProbe({
+    required this.channels,
+    required this.port,
+    required this.https,
+  });
+
+  @override
+  Future<NearbyDevicesState> reduce() async {
+    // The confirmations arrive on the [StartDiscoveryListener] stream, which
+    // stamps them into [NearbyDevicesState.lastSeen]; this stream only signals
+    // when the round is over.
+    await external(notifier._isolateController)
+        .dispatchTakeResult(
+          IsolateDiscoveryStagedScanAction(
+            favorites: channels,
+            // No interfaces means no subnet scan: with an empty list the
+            // staged discovery is exactly "announce and probe the known
+            // addresses", which is all a heartbeat may cost.
+            networkInterfaces: const [],
+            port: port,
+            https: https,
+            // The grace period only delays an escalation that cannot happen
+            // here, so waiting it out would just stretch every round.
+            grace: Duration.zero,
+          ),
+        )
+        .drain<void>();
+
+    return state;
   }
 }
 

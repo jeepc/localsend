@@ -259,6 +259,13 @@ class SettingsTab extends StatelessWidget {
                     await ref.notifier(settingsProvider).setSaveToHistory(b);
                   },
                 ),
+                _BooleanEntry(
+                  label: t.settingsTab.receive.autoAcceptFriendFiles,
+                  value: vm.settings.autoAcceptFriendFiles,
+                  onChanged: (b) async {
+                    await ref.notifier(settingsProvider).setAutoAcceptFriendFiles(b);
+                  },
+                ),
                 if (vm.advanced)
                   _BooleanEntry(
                     label: t.settingsTab.receive.verifyChecksums,

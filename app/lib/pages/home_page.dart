@@ -6,15 +6,24 @@ import 'package:localsend_app/config/init.dart';
 import 'package:localsend_app/config/theme.dart';
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/pages/home_page_controller.dart';
+import 'package:localsend_app/pages/tabs/chat_tab.dart';
 import 'package:localsend_app/pages/tabs/receive_tab.dart';
 import 'package:localsend_app/pages/tabs/send_tab.dart';
 import 'package:localsend_app/pages/tabs/settings_tab.dart';
+import 'package:localsend_app/provider/chat/chat_file_controller.dart';
+import 'package:localsend_app/provider/chat/friends_provider.dart';
+import 'package:localsend_app/provider/chat/selected_friend_provider.dart';
 import 'package:localsend_app/provider/selection/selected_sending_files_provider.dart';
+import 'package:localsend_app/util/friends.dart';
 import 'package:localsend_app/util/native/cross_file_converters.dart';
 import 'package:localsend_app/widget/responsive_builder.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 
+/// The order of this enum is load-bearing: it drives both the navigation
+/// destinations and the index into [PageView.children] below, which must be
+/// kept in the same order.
 enum HomeTab {
+  chat(Icons.chat_bubble),
   receive(Icons.wifi),
   send(Icons.send),
   settings(Icons.settings)
@@ -26,6 +35,8 @@ enum HomeTab {
 
   String get label {
     switch (this) {
+      case HomeTab.chat:
+        return t.chatTab.title;
       case HomeTab.receive:
         return t.receiveTab.title;
       case HomeTab.send:
@@ -83,6 +94,20 @@ class _HomePageState extends State<HomePage> with Refena {
         });
       },
       onDragDone: (event) async {
+        // Dropping onto an open conversation means "send this to them", not
+        // "stage this for some device I have yet to pick".
+        final selectedFriend = ref.read(selectedFriendProvider);
+        if (vm.currentTab == HomeTab.chat && selectedFriend != null && ref.read(friendsProvider).containsFingerprint(selectedFriend)) {
+          final handled = await ref.global.dispatchAsync(
+            SendChatDroppedFilesAction(fingerprint: selectedFriend, files: event.files),
+          );
+          if (handled) {
+            return;
+          }
+          // The friend is not reachable; fall through so the files still end up
+          // somewhere the user can act on them.
+        }
+
         if (event.files.length == 1 && Directory(event.files.first.path).existsSync()) {
           // user dropped a directory
           await ref.redux(selectedSendingFilesProvider).dispatchAsync(AddDirectoryAction(event.files.first.path));
@@ -139,6 +164,7 @@ class _HomePageState extends State<HomePage> with Refena {
                           controller: vm.controller,
                           physics: const NeverScrollableScrollPhysics(),
                           children: const [
+                            ChatTab(),
                             ReceiveTab(),
                             SendTab(),
                             SettingsTab(),

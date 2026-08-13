@@ -149,6 +149,12 @@ class SettingsStateMapper extends ClassMapperBase<SettingsState> {
     'receiveViaLinkAutoAccept',
     _$receiveViaLinkAutoAccept,
   );
+  static bool _$autoAcceptFriendFiles(SettingsState v) =>
+      v.autoAcceptFriendFiles;
+  static const Field<SettingsState, bool> _f$autoAcceptFriendFiles = Field(
+    'autoAcceptFriendFiles',
+    _$autoAcceptFriendFiles,
+  );
   static bool _$createChecksums(SettingsState v) => v.createChecksums;
   static const Field<SettingsState, bool> _f$createChecksums = Field(
     'createChecksums',
@@ -198,6 +204,7 @@ class SettingsStateMapper extends ClassMapperBase<SettingsState> {
     #deviceModel: _f$deviceModel,
     #shareViaLinkAutoAccept: _f$shareViaLinkAutoAccept,
     #receiveViaLinkAutoAccept: _f$receiveViaLinkAutoAccept,
+    #autoAcceptFriendFiles: _f$autoAcceptFriendFiles,
     #createChecksums: _f$createChecksums,
     #verifyChecksums: _f$verifyChecksums,
     #discoveryTimeout: _f$discoveryTimeout,
@@ -232,6 +239,7 @@ class SettingsStateMapper extends ClassMapperBase<SettingsState> {
       deviceModel: data.dec(_f$deviceModel),
       shareViaLinkAutoAccept: data.dec(_f$shareViaLinkAutoAccept),
       receiveViaLinkAutoAccept: data.dec(_f$receiveViaLinkAutoAccept),
+      autoAcceptFriendFiles: data.dec(_f$autoAcceptFriendFiles),
       createChecksums: data.dec(_f$createChecksums),
       verifyChecksums: data.dec(_f$verifyChecksums),
       discoveryTimeout: data.dec(_f$discoveryTimeout),
@@ -332,6 +340,7 @@ abstract class SettingsStateCopyWith<$R, $In extends SettingsState, $Out>
     String? deviceModel,
     bool? shareViaLinkAutoAccept,
     bool? receiveViaLinkAutoAccept,
+    bool? autoAcceptFriendFiles,
     bool? createChecksums,
     bool? verifyChecksums,
     int? discoveryTimeout,
@@ -394,6 +403,7 @@ class _SettingsStateCopyWithImpl<$R, $Out>
     Object? deviceModel = $none,
     bool? shareViaLinkAutoAccept,
     bool? receiveViaLinkAutoAccept,
+    bool? autoAcceptFriendFiles,
     bool? createChecksums,
     bool? verifyChecksums,
     int? discoveryTimeout,
@@ -430,6 +440,8 @@ class _SettingsStateCopyWithImpl<$R, $Out>
         #shareViaLinkAutoAccept: shareViaLinkAutoAccept,
       if (receiveViaLinkAutoAccept != null)
         #receiveViaLinkAutoAccept: receiveViaLinkAutoAccept,
+      if (autoAcceptFriendFiles != null)
+        #autoAcceptFriendFiles: autoAcceptFriendFiles,
       if (createChecksums != null) #createChecksums: createChecksums,
       if (verifyChecksums != null) #verifyChecksums: verifyChecksums,
       if (discoveryTimeout != null) #discoveryTimeout: discoveryTimeout,
@@ -475,6 +487,10 @@ class _SettingsStateCopyWithImpl<$R, $Out>
     receiveViaLinkAutoAccept: data.get(
       #receiveViaLinkAutoAccept,
       or: $value.receiveViaLinkAutoAccept,
+    ),
+    autoAcceptFriendFiles: data.get(
+      #autoAcceptFriendFiles,
+      or: $value.autoAcceptFriendFiles,
     ),
     createChecksums: data.get(#createChecksums, or: $value.createChecksums),
     verifyChecksums: data.get(#verifyChecksums, or: $value.verifyChecksums),

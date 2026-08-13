@@ -354,6 +354,22 @@ class LoadSelectionFromArgsAction extends AsyncReduxActionWithResult<SelectedSen
   }
 }
 
+/// Replaces the selection without touching the file cache.
+///
+/// In contrast to [ClearSelectionAction] this keeps the cached files alive, so
+/// it can be used to borrow the selection for another flow (see the chat file
+/// picker) and hand it back afterwards.
+class SetSelectionAction extends ReduxAction<SelectedSendingFilesNotifier, List<CrossFile>> {
+  final List<CrossFile> files;
+
+  SetSelectionAction(this.files);
+
+  @override
+  List<CrossFile> reduce() {
+    return List.unmodifiable(files);
+  }
+}
+
 /// Removes all files from the list.
 class ClearSelectionAction extends ReduxAction<SelectedSendingFilesNotifier, List<CrossFile>> with GlobalActions {
   @override

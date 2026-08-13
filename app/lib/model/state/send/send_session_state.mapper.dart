@@ -76,6 +76,11 @@ class SendSessionStateMapper extends ClassMapperBase<SendSessionState> {
     'errorMessage',
     _$errorMessage,
   );
+  static String? _$chatMessageId(SendSessionState v) => v.chatMessageId;
+  static const Field<SendSessionState, String> _f$chatMessageId = Field(
+    'chatMessageId',
+    _$chatMessageId,
+  );
 
   @override
   final MappableFields<SendSessionState> fields = const {
@@ -90,6 +95,7 @@ class SendSessionStateMapper extends ClassMapperBase<SendSessionState> {
     #endTime: _f$endTime,
     #sendingTasks: _f$sendingTasks,
     #errorMessage: _f$errorMessage,
+    #chatMessageId: _f$chatMessageId,
   };
 
   static SendSessionState _instantiate(DecodingData data) {
@@ -105,6 +111,7 @@ class SendSessionStateMapper extends ClassMapperBase<SendSessionState> {
       endTime: data.dec(_f$endTime),
       sendingTasks: data.dec(_f$sendingTasks),
       errorMessage: data.dec(_f$errorMessage),
+      chatMessageId: data.dec(_f$chatMessageId),
     );
   }
 
@@ -192,6 +199,7 @@ abstract class SendSessionStateCopyWith<$R, $In extends SendSessionState, $Out>
     int? endTime,
     List<SendingTask>? sendingTasks,
     String? errorMessage,
+    String? chatMessageId,
   });
   SendSessionStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -243,6 +251,7 @@ class _SendSessionStateCopyWithImpl<$R, $Out>
     Object? endTime = $none,
     Object? sendingTasks = $none,
     Object? errorMessage = $none,
+    Object? chatMessageId = $none,
   }) => $apply(
     FieldCopyWithData({
       if (sessionId != null) #sessionId: sessionId,
@@ -256,6 +265,7 @@ class _SendSessionStateCopyWithImpl<$R, $Out>
       if (endTime != $none) #endTime: endTime,
       if (sendingTasks != $none) #sendingTasks: sendingTasks,
       if (errorMessage != $none) #errorMessage: errorMessage,
+      if (chatMessageId != $none) #chatMessageId: chatMessageId,
     }),
   );
   @override
@@ -271,6 +281,7 @@ class _SendSessionStateCopyWithImpl<$R, $Out>
     endTime: data.get(#endTime, or: $value.endTime),
     sendingTasks: data.get(#sendingTasks, or: $value.sendingTasks),
     errorMessage: data.get(#errorMessage, or: $value.errorMessage),
+    chatMessageId: data.get(#chatMessageId, or: $value.chatMessageId),
   );
 
   @override

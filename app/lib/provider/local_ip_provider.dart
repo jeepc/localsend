@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:localsend_app/model/state/network_state.dart';
+import 'package:localsend_app/provider/network_identity_provider.dart';
 import 'package:localsend_app/provider/settings_provider.dart';
 import 'package:localsend_app/util/native/platform_check.dart';
 import 'package:localsend_isolates/util/network_interfaces.dart';
@@ -66,7 +67,7 @@ class InitLocalIpAction extends ReduxAction<LocalIpService, NetworkState> {
   }
 }
 
-class FetchLocalIpAction extends AsyncReduxAction<LocalIpService, NetworkState> {
+class FetchLocalIpAction extends AsyncReduxAction<LocalIpService, NetworkState> with GlobalActions {
   @override
   Future<NetworkState> reduce() async {
     return NetworkState(
@@ -76,6 +77,14 @@ class FetchLocalIpAction extends AsyncReduxAction<LocalIpService, NetworkState> 
       ),
       initialized: true,
     );
+  }
+
+  @override
+  void after() {
+    // The LAN we are on may have changed with the addresses. Friends are
+    // grouped by network, so the identity has to follow.
+    // ignore: discarded_futures
+    global.dispatchAsync(RefreshNetworkIdentityGlobalAction());
   }
 }
 

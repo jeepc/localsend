@@ -1,14 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:collection/collection.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:localsend_app/gen/strings.g.dart';
+import 'package:localsend_app/model/persistence/chat_message.dart';
 import 'package:localsend_app/model/state/server/receive_session_state.dart';
 import 'package:localsend_app/model/state/server/receiving_file.dart';
 import 'package:localsend_app/pages/home_page.dart';
 import 'package:localsend_app/pages/home_page_controller.dart';
 import 'package:localsend_app/pages/progress_page.dart';
 import 'package:localsend_app/pages/receive_page.dart';
+import 'package:localsend_app/provider/chat/chat_controller.dart';
+import 'package:localsend_app/provider/chat/chat_provider.dart';
+import 'package:localsend_app/provider/chat/friends_provider.dart';
+import 'package:localsend_app/provider/chat/network_group_controller.dart';
 import 'package:localsend_app/provider/device_info_provider.dart';
 import 'package:localsend_app/provider/favorites_provider.dart';
 import 'package:localsend_app/provider/file_transfer_provider.dart';
@@ -22,12 +27,16 @@ import 'package:localsend_app/provider/security_provider.dart';
 import 'package:localsend_app/provider/selection/selected_receiving_files_provider.dart';
 import 'package:localsend_app/provider/selection/selected_sending_files_provider.dart';
 import 'package:localsend_app/provider/settings_provider.dart';
+import 'package:localsend_app/util/chat_envelope.dart';
+import 'package:localsend_app/util/friends.dart';
 import 'package:localsend_app/util/native/directories.dart';
 import 'package:localsend_app/util/native/platform_check.dart';
 import 'package:localsend_app/util/native/tray_helper.dart';
+import 'package:localsend_app/widget/dialogs/friend_request_dialog.dart';
 import 'package:localsend_app/widget/dialogs/open_file_dialog.dart';
 import 'package:localsend_isolates/isolate.dart';
 import 'package:localsend_isolates/model/device.dart';
+import 'package:localsend_isolates/model/dto/file_dto.dart';
 import 'package:localsend_isolates/model/file_status.dart';
 import 'package:localsend_isolates/model/file_type.dart';
 import 'package:localsend_isolates/model/session_status.dart';
@@ -126,11 +135,26 @@ class ReceiveController {
           statuses: {for (final file in files.values) file.id: FileStatus.queue},
         );
 
+    // Chat rides on the plain text transfer: a single text file whose *name*
+    // carries a marker the protocol itself never looks at. Handle those here
+    // and answer immediately, so the sender is not left waiting on a decision
+    // and no receive page pops up for what is really a chat bubble.
+    if (await _handleChatEnvelope(files.values.toList(), event, senderFingerprint)) {
+      return;
+    }
+
     bool quickSave = settings.quickSave && server.getState().session?.message == null;
     final quickSaveFromFavorites = settings.quickSaveFromFavorites && server.getState().session?.message == null;
     if (quickSaveFromFavorites) {
       final bool isFavorite = server.ref.read(favoritesProvider).any((e) => e.fingerprint == senderFingerprint);
       if (isFavorite) {
+        quickSave = true;
+      }
+    }
+    if (settings.autoAcceptFriendFiles && server.getState().session?.message == null) {
+      // Opt-in only: being someone's friend must not by itself grant write
+      // access to their disk.
+      if (server.ref.read(friendsProvider).containsFingerprint(senderFingerprint)) {
         quickSave = true;
       }
     }
@@ -232,6 +256,102 @@ class ReceiveController {
 
     // ignore: use_build_context_synchronously, unawaited_futures
     Routerino.context.push(() => ReceivePage(receiveProvider));
+  }
+
+  /// Handles a transfer that is really a chat payload.
+  ///
+  /// Returns true when it was one and has been fully dealt with, so the caller
+  /// must not continue with the normal receive flow.
+  Future<bool> _handleChatEnvelope(List<FileDto> files, HttpServerPrepareUploadEvent event, String senderFingerprint) async {
+    if (files.length != 1) {
+      return false;
+    }
+    final file = files.first;
+    final envelope = ChatEnvelope.tryParse(file.fileName, file.preview);
+    if (envelope == null) {
+      return false;
+    }
+
+    if (envelope is ChatTextEnvelope && !server.ref.read(friendsProvider).containsFingerprint(senderFingerprint)) {
+      // A chat message from someone who is not a friend: fall through to the
+      // normal message flow, so a stranger cannot write into a conversation.
+      // The user still sees the text, just as a regular incoming message.
+      return false;
+    }
+
+    final sender = event.info.toDevice(event.ip, withChannel: false).copyWith(fingerprint: senderFingerprint);
+
+    // Accept nothing: the Rust server answers 204 and creates no session, so
+    // the sender is released immediately instead of waiting on a human.
+    await acceptFileRequest({});
+
+    switch (envelope) {
+      case ChatTextEnvelope():
+        await server.ref
+            .redux(chatProvider)
+            .dispatchAsync(
+              AppendMessageAction(
+                ChatMessage.incomingText(
+                  peerFingerprint: senderFingerprint,
+                  text: envelope.text,
+                  id: envelope.messageId,
+                  timestamp: envelope.timestamp,
+                ),
+              ),
+            );
+      case FriendRequestEnvelope():
+        await _handleFriendRequest(envelope, sender);
+      case FriendResponseEnvelope():
+        await server.ref.global.dispatchAsync(HandleFriendResponseAction(envelope: envelope, responder: sender));
+      case UnfriendEnvelope():
+        await server.ref.global.dispatchAsync(HandleUnfriendAction(senderFingerprint));
+    }
+
+    return true;
+  }
+
+  Future<void> _handleFriendRequest(FriendRequestEnvelope envelope, Device requester) async {
+    if (checkPlatformHasTray() && (await windowManager.isMinimized() || !(await windowManager.isVisible()) || !(await windowManager.isFocused()))) {
+      await showFromTray();
+    }
+
+    final accepted = await FriendRequestDialog.open(
+      // ignore: use_build_context_synchronously
+      Routerino.context,
+      alias: envelope.alias.isNotEmpty ? envelope.alias : requester.alias,
+    );
+
+    // Resolving the group can ask the user to name an unknown network, so it
+    // only runs once they have decided to accept. It must never take the answer
+    // down with it: without an answer the requester never learns the friendship
+    // was accepted, and the two sides disagree with no way to recover.
+    String? networkId;
+    if (accepted == true) {
+      try {
+        networkId = await server.ref.global.dispatchAsync(EnsureCurrentNetworkGroupAction());
+      } catch (e) {
+        _logger.warning('Could not resolve the network group for the new friend; continuing without one.', e);
+      }
+    }
+
+    final delivered = await server.ref.global.dispatchAsync(
+      RespondToFriendRequestAction(
+        requestId: envelope.requestId,
+        accepted: accepted == true,
+        requester: requester,
+        networkId: networkId,
+      ),
+    );
+
+    if (accepted == true && !delivered) {
+      // ignore: use_build_context_synchronously
+      final context = Routerino.context;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.dialogs.friendRequest.answerFailed(alias: requester.alias))),
+        );
+      }
+    }
   }
 
   /// An accepted file started being uploaded.
@@ -366,6 +486,20 @@ class ReceiveController {
               timestamp: DateTime.now().toUtc(),
             ),
           );
+
+      // Mirror it into the conversation when it came from a friend. File
+      // messages carry no protocol marker: any file exchanged with a friend
+      // belongs to that chat, which is also what the user expects to see.
+      await server.ref.global.dispatchAsync(
+        RecordFileMessageAction(
+          fingerprint: receiveState.sender.fingerprint,
+          outgoing: false,
+          fileName: receivingFile.desiredName!,
+          fileSize: receivingFile.file.size,
+          filePath: filePath,
+          isImage: fileType == FileType.image,
+        ),
+      );
     } else {
       server.ref.notifier(fileTransferProvider).setStatus(sessionId: event.sessionId, fileId: fileId, status: FileStatus.failed);
       server.setState(

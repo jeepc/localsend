@@ -47,6 +47,7 @@ class Translations with BaseTranslations<AppLocale, Translations> {
   String get appName => 'LocalSend';
 
   late final Translations$general$en general = Translations$general$en.internal(_root);
+  late final Translations$chatTab$en chatTab = Translations$chatTab$en.internal(_root);
   late final Translations$receiveTab$en receiveTab = Translations$receiveTab$en.internal(_root);
   late final Translations$sendTab$en sendTab = Translations$sendTab$en.internal(_root);
   late final Translations$settingsTab$en settingsTab = Translations$settingsTab$en.internal(_root);
@@ -196,6 +197,74 @@ class Translations$general$en {
 
   /// en: 'No items in Clipboard.'
   String get noItemInClipboard => 'No items in Clipboard.';
+}
+
+// Path: chatTab
+class Translations$chatTab$en {
+  Translations$chatTab$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Chat'
+  String get title => 'Chat';
+
+  late final Translations$chatTab$noFriends$en noFriends = Translations$chatTab$noFriends$en.internal(_root);
+
+  /// en: 'Select a friend to start chatting'
+  String get selectFriend => 'Select a friend to start chatting';
+
+  /// en: 'Open chat'
+  String get openChat => 'Open chat';
+
+  /// en: 'Search'
+  String get search => 'Search';
+
+  /// en: 'Ungrouped'
+  String get ungrouped => 'Ungrouped';
+
+  /// en: 'Other networks'
+  String get otherNetworks => 'Other networks';
+
+  /// en: 'Type a message'
+  String get inputHint => 'Type a message';
+
+  /// en: 'Send file'
+  String get sendFile => 'Send file';
+
+  /// en: 'Send image'
+  String get sendImage => 'Send image';
+
+  /// en: 'Not delivered'
+  String get notDelivered => 'Not delivered';
+
+  /// en: 'Resend'
+  String get resend => 'Resend';
+
+  /// en: 'Not reachable on this network'
+  String get offlineHint => 'Not reachable on this network';
+
+  /// en: 'Refresh'
+  String get refresh => 'Refresh';
+
+  /// en: 'Checking reachability…'
+  String get checking => 'Checking reachability…';
+
+  /// en: 'File'
+  String get fileMessage => 'File';
+
+  /// en: 'The file no longer exists. Sending failed.'
+  String get fileMissing => 'The file no longer exists. Sending failed.';
+
+  /// en: 'Clear conversation'
+  String get clearConversation => 'Clear conversation';
+
+  /// en: 'No messages yet'
+  String get emptyConversation => 'No messages yet';
+
+  /// en: 'Move to another group'
+  String get regroup => 'Move to another group';
 }
 
 // Path: receiveTab
@@ -785,6 +854,10 @@ class Translations$dialogs$en {
   late final Translations$dialogs$pin$en pin = Translations$dialogs$pin$en.internal(_root);
   late final Translations$dialogs$sendModeHelp$en sendModeHelp = Translations$dialogs$sendModeHelp$en.internal(_root);
   late final Translations$dialogs$zoom$en zoom = Translations$dialogs$zoom$en.internal(_root);
+  late final Translations$dialogs$friendRequest$en friendRequest = Translations$dialogs$friendRequest$en.internal(_root);
+  late final Translations$dialogs$networkName$en networkName = Translations$dialogs$networkName$en.internal(_root);
+  late final Translations$dialogs$friendEdit$en friendEdit = Translations$dialogs$friendEdit$en.internal(_root);
+  late final Translations$dialogs$friendDelete$en friendDelete = Translations$dialogs$friendDelete$en.internal(_root);
 }
 
 // Path: sanitization
@@ -945,6 +1018,21 @@ class Translations$assetPicker$en {
 
   /// en: 'count'
   String get sUnitAssetCountLabel => 'count';
+}
+
+// Path: chatTab.noFriends
+class Translations$chatTab$noFriends$en {
+  Translations$chatTab$noFriends$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'No chats yet'
+  String get title => 'No chats yet';
+
+  /// en: 'Open the send tab and tap the add-friend icon on a device. Once they accept, you can chat.'
+  String get description => 'Open the send tab and tap the add-friend icon on a device. Once they accept, you can chat.';
 }
 
 // Path: receiveTab.infoBox
@@ -1135,6 +1223,9 @@ class Translations$settingsTab$receive$en {
 
   /// en: 'Verify checksums when receiving files'
   String get verifyChecksums => 'Verify checksums when receiving files';
+
+  /// en: 'Auto accept files from friends'
+  String get autoAcceptFriendFiles => 'Auto accept files from friends';
 }
 
 // Path: settingsTab.send
@@ -1819,6 +1910,96 @@ class Translations$dialogs$zoom$en {
 
   /// en: 'URL'
   String get title => 'URL';
+}
+
+// Path: dialogs.friendRequest
+class Translations$dialogs$friendRequest$en {
+  Translations$dialogs$friendRequest$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Friend request'
+  String get title => 'Friend request';
+
+  /// en: '{alias} would like to add you as a friend.'
+  String content({required Object alias}) => '${alias} would like to add you as a friend.';
+
+  /// en: 'Friend request sent to {alias}.'
+  String sent({required Object alias}) => 'Friend request sent to ${alias}.';
+
+  /// en: 'Could not reach {alias}.'
+  String failed({required Object alias}) => 'Could not reach ${alias}.';
+
+  /// en: '{alias} declined your friend request.'
+  String declinedByPeer({required Object alias}) => '${alias} declined your friend request.';
+
+  /// en: '{alias} is already your friend.'
+  String alreadyFriend({required Object alias}) => '${alias} is already your friend.';
+
+  /// en: 'Could not tell {alias} that you accepted, so they will not see the friendship.'
+  String answerFailed({required Object alias}) => 'Could not tell ${alias} that you accepted, so they will not see the friendship.';
+}
+
+// Path: dialogs.networkName
+class Translations$dialogs$networkName$en {
+  Translations$dialogs$networkName$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Name this network'
+  String get title => 'Name this network';
+
+  /// en: 'Friends are grouped by the network you met them on.'
+  String get description => 'Friends are grouped by the network you met them on.';
+
+  /// en: 'Network name'
+  String get hint => 'Network name';
+
+  List<String> get suggestions => [
+    'Home',
+    'Office',
+    'Cafe',
+  ];
+}
+
+// Path: dialogs.friendEdit
+class Translations$dialogs$friendEdit$en {
+  Translations$dialogs$friendEdit$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Edit friend'
+  String get title => 'Edit friend';
+
+  /// en: 'Nickname'
+  String get alias => 'Nickname';
+
+  /// en: 'Group'
+  String get network => 'Group';
+
+  /// en: 'Ungrouped'
+  String get noGroup => _root.chatTab.ungrouped;
+}
+
+// Path: dialogs.friendDelete
+class Translations$dialogs$friendDelete$en {
+  Translations$dialogs$friendDelete$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Remove friend'
+  String get title => 'Remove friend';
+
+  /// en: 'Remove {alias}? The conversation will be deleted as well.'
+  String content({required Object alias}) => 'Remove ${alias}? The conversation will be deleted as well.';
 }
 
 // Path: settingsTab.general.brightnessOptions
