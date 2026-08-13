@@ -21,4 +21,20 @@ extension FriendsExt on Iterable<Friend> {
   bool containsFingerprint(String fingerprint) {
     return any((e) => e.fingerprint == fingerprint);
   }
+
+  /// Newest conversation first, so whoever the user talked to last is on top.
+  ///
+  /// [lastActivity] maps a fingerprint to the timestamp of the newest message
+  /// of that conversation; a friend without any message falls back to
+  /// [Friend.addedAt]. Equal timestamps break ties on the fingerprint because
+  /// [List.sort] is not stable — otherwise the order could jump around between
+  /// rebuilds.
+  List<Friend> sortedByActivity(Map<String, DateTime> lastActivity) {
+    DateTime keyOf(Friend friend) => lastActivity[friend.fingerprint] ?? friend.addedAt;
+
+    return toList()..sort((a, b) {
+      final byTime = keyOf(b).compareTo(keyOf(a));
+      return byTime != 0 ? byTime : a.fingerprint.compareTo(b.fingerprint);
+    });
+  }
 }

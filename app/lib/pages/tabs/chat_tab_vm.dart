@@ -8,6 +8,7 @@ import 'package:localsend_app/provider/chat/selected_friend_provider.dart';
 import 'package:localsend_app/provider/known_networks_provider.dart';
 import 'package:localsend_app/provider/network/nearby_devices_provider.dart';
 import 'package:localsend_app/provider/network_identity_provider.dart';
+import 'package:localsend_app/provider/persistence_provider.dart';
 import 'package:localsend_app/util/friends.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 
@@ -72,9 +73,24 @@ final chatTabVmProvider = ViewProvider((ref) {
 
   final currentNetwork = networks.findMatch(identity);
 
+  // Conversations are loaded lazily, so a friend the user has not opened yet has
+  // no messages in [conversations]. The in-memory list wins whenever its key is
+  // present — including when [ClearConversationAction] emptied it — otherwise
+  // only the newest stored message is decoded, which keeps ordering cheap enough
+  // to redo on every rebuild.
+  final persistence = ref.read(persistenceProvider);
+  final lastActivity = <String, DateTime>{};
+  for (final friend in friends) {
+    final loaded = conversations[friend.fingerprint];
+    final time = loaded != null ? (loaded.isEmpty ? null : loaded.last.timestamp) : persistence.getLastChatMessageTime(friend.fingerprint);
+    if (time != null) {
+      lastActivity[friend.fingerprint] = time;
+    }
+  }
+
   final groups = <FriendGroup>[];
   for (final network in networks) {
-    final members = friends.where((f) => f.networkId == network.id).toList();
+    final members = friends.where((f) => f.networkId == network.id).sortedByActivity(lastActivity);
     if (members.isEmpty) {
       continue;
     }
@@ -91,7 +107,7 @@ final chatTabVmProvider = ViewProvider((ref) {
   // Friends whose network was unknown when they were added, plus any whose
   // group was deleted since.
   final knownIds = networks.map((e) => e.id).toSet();
-  final ungrouped = friends.where((f) => f.networkId == null || !knownIds.contains(f.networkId)).toList();
+  final ungrouped = friends.where((f) => f.networkId == null || !knownIds.contains(f.networkId)).sortedByActivity(lastActivity);
   if (ungrouped.isNotEmpty) {
     groups.add(
       FriendGroup(

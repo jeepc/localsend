@@ -320,6 +320,19 @@ class PersistenceService {
     return messagesRaw.map((entry) => ChatMessage.fromJson(jsonDecode(entry))).toList();
   }
 
+  /// Timestamp of the newest message of a conversation, without decoding the
+  /// whole conversation. Used to order the friend list by recency, where every
+  /// friend has to be looked at but hardly any conversation is loaded.
+  ///
+  /// Messages are stored in append order, so the last entry is the newest one.
+  DateTime? getLastChatMessageTime(String fingerprint) {
+    final messagesRaw = _prefs.getStringList(_chatKey(fingerprint));
+    if (messagesRaw == null || messagesRaw.isEmpty) {
+      return null;
+    }
+    return ChatMessage.fromJson(jsonDecode(messagesRaw.last)).timestamp;
+  }
+
   Future<void> setChatMessages(String fingerprint, List<ChatMessage> entries) async {
     final messagesRaw = entries.map((entry) => jsonEncode(entry.toJson())).toList();
     await _prefs.setStringList(_chatKey(fingerprint), messagesRaw);

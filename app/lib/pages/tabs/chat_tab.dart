@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/model/persistence/chat_message.dart';
@@ -75,6 +76,26 @@ class _ChatTabState extends State<ChatTab> with Refena, WidgetsBindingObserver {
     ref.redux(chatProvider).dispatch(LoadConversationAction(friend.fingerprint));
   }
 
+  /// Opens the most recent conversation whenever nothing is selected: on app
+  /// start, after the selected friend was unfriended, and when the very first
+  /// friend is accepted while this tab is on screen. [ChatTabVm.selectedFriend]
+  /// is null in all three cases — a fingerprint that no longer belongs to a
+  /// friend does not resolve either — so one check covers them.
+  ///
+  /// The groups are sorted with the current network first and each group by
+  /// recency, so the first entry is the last friend the user talked to among the
+  /// reachable ones.
+  void _autoSelectFirstFriend() {
+    final vm = ref.read(chatTabVmProvider);
+    if (vm.selectedFriend != null) {
+      return;
+    }
+    final first = vm.groups.firstOrNull?.friends.firstOrNull;
+    if (first != null) {
+      _selectFriend(first);
+    }
+  }
+
   Future<void> _editFriend(Friend friend) async {
     await FriendEditDialog.open(context, friend);
   }
@@ -85,6 +106,17 @@ class _ChatTabState extends State<ChatTab> with Refena, WidgetsBindingObserver {
 
     if (vm.friendCount == 0) {
       return const _NoFriends();
+    }
+
+    if (vm.selectedFriend == null) {
+      // Selecting mutates two providers, which must not happen while this frame
+      // is being built. Picking someone rebuilds with a selection, so this does
+      // not fire again.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _autoSelectFirstFriend();
+        }
+      });
     }
 
     final panel = vm.selectedFriend == null

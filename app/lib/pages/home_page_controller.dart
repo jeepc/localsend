@@ -22,10 +22,10 @@ class HomePageController extends ReduxNotifier<HomePageVm> {
   @override
   HomePageVm init() {
     return HomePageVm(
-      // Must match [currentTab]: the chat tab sits at index 0, so a plain
-      // PageController() would show it while the rail highlights "receive".
-      controller: PageController(initialPage: HomeTab.receive.index),
-      currentTab: HomeTab.receive,
+      // Must match [currentTab], otherwise the PageView shows one tab while the
+      // rail highlights another.
+      controller: PageController(initialPage: HomeTab.chat.index),
+      currentTab: HomeTab.chat,
       changeTab: (tab) => redux.dispatch(ChangeTabAction(tab)),
     );
   }
