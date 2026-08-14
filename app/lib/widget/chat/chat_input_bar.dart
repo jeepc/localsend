@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/util/native/platform_check.dart';
-import 'package:localsend_app/widget/chat/chat_divider.dart';
 
 /// The message composer: a growing text field plus the attachment buttons.
 class ChatInputBar extends StatefulWidget {
@@ -60,11 +59,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: chatDividerColor(context))),
-      ),
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+    return Padding(
+      // The filled text field is shape enough to read as its own band; a rule on
+      // top would only double up with the field's own edge.
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
       child: SafeArea(
         top: false,
         child: Row(
@@ -94,7 +92,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
                   textInputAction: TextInputAction.newline,
                   decoration: InputDecoration(
                     hintText: t.chatTab.inputHint,
-                    border: const OutlineInputBorder(),
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),

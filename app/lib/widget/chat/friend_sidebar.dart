@@ -52,7 +52,6 @@ class _FriendSidebarState extends State<FriendSidebar> {
                   decoration: InputDecoration(
                     hintText: t.chatTab.search,
                     prefixIcon: const Icon(Icons.search, size: 20),
-                    border: const OutlineInputBorder(),
                     isDense: true,
                   ),
                   onChanged: (value) => setState(() => _query = value),

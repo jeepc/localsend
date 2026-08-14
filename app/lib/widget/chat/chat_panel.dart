@@ -4,7 +4,6 @@ import 'package:localsend_app/model/persistence/chat_message.dart';
 import 'package:localsend_app/model/persistence/friend.dart';
 import 'package:localsend_app/provider/chat/presence_provider.dart';
 import 'package:localsend_app/widget/chat/chat_bubble.dart';
-import 'package:localsend_app/widget/chat/chat_divider.dart';
 import 'package:localsend_app/widget/chat/chat_input_bar.dart';
 
 /// The right-hand (or lower) half of the chat tab: header, transcript, composer.
@@ -70,11 +69,10 @@ class _ChatPanelState extends State<ChatPanel> {
 
     return Column(
       children: [
-        Container(
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: chatDividerColor(context))),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        Padding(
+          // No rule under the header: the extra bottom inset separates it from
+          // the transcript without drawing a box around the messages.
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
           child: Row(
             children: [
               Expanded(
