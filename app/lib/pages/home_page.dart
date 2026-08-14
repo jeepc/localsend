@@ -104,7 +104,8 @@ class _HomePageState extends State<HomePage> with Refena {
           if (handled) {
             return;
           }
-          // The friend is not reachable; fall through so the files still end up
+          // The friend is not reachable. The conversation already shows the
+          // attempt as undelivered; fall through so the files still end up
           // somewhere the user can act on them.
         }
 

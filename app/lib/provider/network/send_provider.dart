@@ -12,11 +12,13 @@ import 'package:localsend_app/pages/progress_page.dart';
 import 'package:localsend_app/pages/send_page.dart';
 import 'package:localsend_app/provider/chat/chat_controller.dart';
 import 'package:localsend_app/provider/chat/chat_provider.dart';
+import 'package:localsend_app/provider/chat/friends_provider.dart';
 import 'package:localsend_app/provider/device_info_provider.dart';
 import 'package:localsend_app/provider/file_transfer_provider.dart';
 import 'package:localsend_app/provider/http_provider.dart';
 import 'package:localsend_app/provider/selection/selected_sending_files_provider.dart';
 import 'package:localsend_app/provider/settings_provider.dart';
+import 'package:localsend_app/util/friends.dart';
 import 'package:localsend_app/widget/dialogs/pin_dialog.dart';
 import 'package:localsend_isolates/isolate.dart';
 import 'package:localsend_isolates/model/device.dart';
@@ -41,6 +43,12 @@ import 'package:uuid/uuid.dart';
 const _uuid = Uuid();
 final _logger = Logger('Send');
 
+/// A chat bubble that is on screen as [ChatMessageStatus.sending] and still
+/// waits for the outcome of its transfer.
+///
+/// [appended] completes once the bubble actually exists in the conversation.
+typedef _PendingChatBubble = ({String messageId, String fingerprint, Future<void> appended});
+
 /// This provider manages sending files to other devices.
 ///
 /// In contrast to [serverProvider], this provider does not manage a server.
@@ -62,14 +70,15 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
   /// Session ID -> Cancel token
   final _prepareUploadCancelTokens = <String, rust_cancel.RsCancellationToken>{};
 
-  /// Chat bubble created for the files of a session.
-  /// Session ID -> chat message ID
+  /// Chat bubbles that are on screen as [ChatMessageStatus.sending] and still
+  /// wait for their outcome.
+  /// Session ID -> the bubble and the friend it belongs to.
   ///
-  /// All files of a session share one bubble, and a session can be reported
-  /// more than once — a retry from the progress page finishes it a second time
-  /// — so that bubble is moved to the new status instead of a second one being
-  /// appended.
-  final _chatMessageIds = <String, String>{};
+  /// All files of a session share one bubble. Every entry is owned by exactly
+  /// one in-flight [startSession], whose `finally` settles it, so it must not be
+  /// cleared by [closeSession] — that runs first for canceled and for
+  /// successful background sessions.
+  final _pendingChatBubbles = <String, _PendingChatBubble>{};
 
   @override
   Map<String, SendSessionState> init() {
@@ -99,7 +108,8 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
   /// If [background] is false, then this method will open pages by itself and waits for user input to close the session.
   ///
   /// [chatMessageId] marks the session as the retry of a chat message: instead
-  /// of a new bubble, that message is moved to sent or failed.
+  /// of a new bubble, that message is moved back to sending and then to sent or
+  /// failed.
   Future<void> startSession({
     required Device target,
     required List<CrossFile> files,
@@ -116,9 +126,10 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
         chatMessageId: chatMessageId,
       );
     } finally {
-      // Every failure branch of _startSession returns before the transfer even
-      // starts, so files that never got a bubble are reported as failed here.
-      _recordUnreportedFilesAsFailed(sessionId);
+      // Whatever happened, the bubble must not keep spinning. A session that
+      // already reported its outcome is no longer pending, so this is a no-op
+      // for it.
+      _settleChatBubble(sessionId, ChatMessageStatus.failed);
     }
   }
 
@@ -184,6 +195,12 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
         chatMessageId: chatMessageId,
       ),
     );
+
+    // Show the bubble before the peer has even been asked: waiting for the
+    // receiver to accept can take arbitrarily long — prepare-upload has no
+    // timeout for file transfers on purpose — and a chat in which nothing
+    // appears until then looks like the send was lost.
+    _createChatBubble(state[sessionId]!);
 
     ref
         .notifier(fileTransferProvider)
@@ -579,15 +596,10 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     }
   }
 
-  /// Mirrors the files of a finished session into the conversation when the
-  /// target is a friend.
+  /// Settles the bubble of a finished session.
   ///
-  /// File messages carry no protocol marker: any file exchanged with a friend
-  /// belongs to that chat, which is what the user expects to see. The chat
-  /// action itself ignores non-friends, so no check is needed here.
-  ///
-  /// The whole session becomes one message, so a session in which one file did
-  /// not arrive counts as not delivered: the retry resends the batch.
+  /// The whole session is one message, so a session in which one file did not
+  /// arrive counts as not delivered: the retry resends the batch.
   void _recordFilesToFriend(SendSessionState sessionState) {
     final transfer = ref.read(fileTransferProvider);
     var delivered = true;
@@ -597,34 +609,26 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
         break;
       }
     }
-    _recordSessionToFriend(sessionState, delivered ? ChatMessageStatus.sent : ChatMessageStatus.failed);
+    _settleChatBubble(sessionState.sessionId, delivered ? ChatMessageStatus.sent : ChatMessageStatus.failed);
   }
 
-  /// Reports a session that never reached [_finish], and therefore has no
-  /// bubble yet, as failed. A session already reported keeps its status.
-  void _recordUnreportedFilesAsFailed(String sessionId) {
-    final sessionState = state[sessionId];
-    if (sessionState == null) {
-      // Canceled and cleaned up; there is nothing left to report.
-      return;
-    }
-    if (sessionState.status == SessionStatus.canceledBySender) {
-      // The user aborted it themselves, so there is no failure to report.
-      return;
-    }
-    if (_chatMessageIds.containsKey(sessionId)) {
-      return;
-    }
-
-    _recordSessionToFriend(sessionState, ChatMessageStatus.failed);
-  }
-
-  /// Records the session as one chat message, or moves the message it already
-  /// has to [status].
+  /// Puts the files of a starting session into the conversation as one message
+  /// that is still on its way.
   ///
-  /// Files that did not arrive are recorded as well, as failed: a file that
-  /// silently vanishes is worse than one the user can see and retry.
-  void _recordSessionToFriend(SendSessionState sessionState, ChatMessageStatus status) {
+  /// File messages carry no protocol marker: any file exchanged with a friend
+  /// belongs to that chat, which is what the user expects to see. Sessions
+  /// targeting someone who is not a friend get no bubble at all.
+  ///
+  /// A session that carries a [SendSessionState.chatMessageId] retries a bubble
+  /// that is already there, which [ResendChatFileMessageAction] has moved back
+  /// to sending, so nothing is appended for it.
+  void _createChatBubble(SendSessionState sessionState) {
+    final fingerprint = sessionState.target.fingerprint;
+    final chatMessageId = sessionState.chatMessageId;
+    if (!ref.read(friendsProvider).containsFingerprint(fingerprint)) {
+      return;
+    }
+
     final files = <ChatFile>[
       for (final sendingFile in sessionState.files.values)
         // Skip the plain text "message" transfers, which are not files the user picked.
@@ -640,37 +644,58 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       return;
     }
 
-    // The session retries an existing bubble, so it must not append a second one.
-    final existingMessageId = _chatMessageIds[sessionState.sessionId] ?? sessionState.chatMessageId;
-    if (existingMessageId != null) {
-      _chatMessageIds[sessionState.sessionId] = existingMessageId;
-      unawaited(
-        ref
-            .redux(chatProvider)
-            .dispatchAsync(
-              UpdateMessageStatusAction(
-                fingerprint: sessionState.target.fingerprint,
-                messageId: existingMessageId,
-                status: status,
+    final messageId = chatMessageId ?? _uuid.v4();
+    _pendingChatBubbles[sessionState.sessionId] = (
+      messageId: messageId,
+      fingerprint: fingerprint,
+      // A retried bubble is already in the conversation, moved back to sending
+      // by ResendChatFileMessageAction.
+      appended: chatMessageId != null
+          ? Future<void>.value()
+          : ref.global.dispatchAsync(
+              RecordFilesMessageAction(
+                fingerprint: fingerprint,
+                outgoing: true,
+                files: files,
+                status: ChatMessageStatus.sending,
+                messageId: messageId,
               ),
             ),
-      );
+    );
+  }
+
+  /// Moves the bubble of a session to its final [status], once.
+  ///
+  /// Deliberately independent of [state]: [closeSession] tears a session down
+  /// before [startSession] returns, both when the user cancels it and when a
+  /// background session succeeds, so the outcome would otherwise be lost.
+  void _settleChatBubble(String sessionId, ChatMessageStatus status) {
+    final bubble = _pendingChatBubbles.remove(sessionId);
+    if (bubble == null) {
       return;
     }
+    unawaited(_moveChatBubble(bubble, status));
+  }
 
-    final messageId = _uuid.v4();
-    _chatMessageIds[sessionState.sessionId] = messageId;
-    unawaited(
-      ref.global.dispatchAsync(
-        RecordFilesMessageAction(
-          fingerprint: sessionState.target.fingerprint,
-          outgoing: true,
-          files: files,
-          status: status,
-          messageId: messageId,
-        ),
-      ),
-    );
+  /// Waits for the bubble to exist before moving it: a session that fails
+  /// before it even reaches the peer would otherwise overtake its own append
+  /// and leave the bubble spinning forever.
+  Future<void> _moveChatBubble(_PendingChatBubble bubble, ChatMessageStatus status) async {
+    try {
+      await bubble.appended;
+    } catch (e) {
+      _logger.warning('Could not record a chat message for a transfer', e);
+      return;
+    }
+    await ref
+        .redux(chatProvider)
+        .dispatchAsync(
+          UpdateMessageStatusAction(
+            fingerprint: bubble.fingerprint,
+            messageId: bubble.messageId,
+            status: status,
+          ),
+        );
   }
 
   final uriContent = UriContent();
@@ -918,7 +943,8 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     TransferNotification.stop(sessionId);
     _hashCancelTokens.remove(sessionId)?.cancel();
     _prepareUploadCancelTokens.remove(sessionId)?.cancel();
-    _chatMessageIds.remove(sessionId);
+    // _pendingChatBubbles is not touched: the bubble outlives the session and is
+    // settled by the startSession that owns it.
     state = state.removeSession(ref, sessionId);
     if (sessionState.status == SessionStatus.finished && ref.read(settingsProvider).sendMode == SendMode.single) {
       // clear selected files
@@ -938,7 +964,6 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       cancelToken.cancel();
     }
     _prepareUploadCancelTokens.clear();
-    _chatMessageIds.clear();
     state = {};
     ref.notifier(fileTransferProvider).removeAllSessions();
   }

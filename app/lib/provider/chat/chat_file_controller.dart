@@ -17,7 +17,8 @@ import 'package:refena_flutter/refena_flutter.dart';
 import 'package:routerino/routerino.dart';
 
 /// Collects files into the send tab's staging area with [collect], then sends
-/// whatever landed there straight to a friend. Returns whether it ran.
+/// whatever landed there straight to a friend. Returns whether the caller can
+/// consider the files handled.
 ///
 /// The pickers and the drop handler all write into
 /// [selectedSendingFilesProvider], which is the send tab's staging area.
@@ -28,20 +29,19 @@ import 'package:routerino/routerino.dart';
 /// [SetSelectionAction] rather than [ClearSelectionAction]: the latter also
 /// purges the file cache, which would invalidate the very files being borrowed.
 ///
-/// [recordUnreachableAsFailed] decides what an unreachable friend means: the
-/// picker was opened on purpose, so those files become failed bubbles the user
-/// can retry, while dropped files are handed back to the caller (false) to be
-/// staged on the send tab instead.
+/// An unreachable friend always leaves an undelivered bubble, so the attempt is
+/// visible in the conversation and can be retried from there.
+/// [handlesUnreachable] only decides whether that is the whole answer: the
+/// picker was opened on purpose, so the bubble is enough (true), while dropped
+/// files are additionally handed back to the caller (false) to be staged on the
+/// send tab.
 Future<bool> _collectAndSend(
   Ref ref,
   String fingerprint,
   Future<void> Function() collect, {
-  required bool recordUnreachableAsFailed,
+  required bool handlesUnreachable,
 }) async {
   final target = ref.resolveChatTarget(fingerprint);
-  if (target == null && !recordUnreachableAsFailed) {
-    return false;
-  }
 
   final previousSelection = List<CrossFile>.from(ref.read(selectedSendingFilesProvider));
   ref.redux(selectedSendingFilesProvider).dispatch(SetSelectionAction(const []));
@@ -59,8 +59,8 @@ Future<bool> _collectAndSend(
   }
 
   if (target == null) {
-    // Nothing to send to, but the user did pick these files, so they show up as
-    // undelivered instead of disappearing.
+    // No address to even try, so this never becomes a session. The files still
+    // show up as undelivered instead of disappearing.
     await ref.global.dispatchAsync(
       RecordFilesMessageAction(
         fingerprint: fingerprint,
@@ -71,11 +71,11 @@ Future<bool> _collectAndSend(
         status: ChatMessageStatus.failed,
       ),
     );
-    return true;
+    return handlesUnreachable;
   }
 
-  // background: true keeps the transfer out of the foreground pages; the
-  // resulting bubbles are recorded when the session finishes.
+  // background: true keeps the transfer out of the foreground pages. The bubble
+  // is created by the send provider as soon as the session starts.
   await ref.notifier(sendProvider).startSession(target: target, files: collected, background: true);
   return true;
 }
@@ -98,15 +98,16 @@ class SendChatFilesAction extends AsyncGlobalAction {
       ref,
       fingerprint,
       () => ref.global.dispatchAsync(PickFileAction(option: option, context: context)),
-      recordUnreachableAsFailed: true,
+      handlesUnreachable: true,
     );
   }
 }
 
 /// Sends files dropped onto an open conversation to that friend.
 ///
-/// Returns false when the friend cannot be reached, so the caller can fall back
-/// to the normal drop behaviour instead of swallowing the files.
+/// Returns false when the friend cannot be reached: the conversation keeps an
+/// undelivered bubble, and the caller still falls back to the normal drop
+/// behaviour so the files also end up somewhere the user can act on them.
 class SendChatDroppedFilesAction extends AsyncGlobalActionWithResult<bool> {
   final String fingerprint;
   final List<XFile> files;
@@ -132,7 +133,7 @@ class SendChatDroppedFilesAction extends AsyncGlobalActionWithResult<bool> {
               );
         }
       },
-      recordUnreachableAsFailed: false,
+      handlesUnreachable: false,
     );
   }
 }
