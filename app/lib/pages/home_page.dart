@@ -134,15 +134,20 @@ class _HomePageState extends State<HomePage> with Refena {
                     selectedIndex: vm.currentTab.index,
                     onDestinationSelected: (index) => vm.changeTab(HomeTab.values[index]),
                     extended: sizingInformation.isDesktop,
+                    minExtendedWidth: 160,
                     backgroundColor: Theme.of(context).cardColorWithElevation,
                     leading: sizingInformation.isDesktop
                         ? const Column(
                             children: [
                               SizedBox(height: 20),
-                              Text(
-                                'LocalSend',
-                                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                                textAlign: TextAlign.center,
+                              // The rail is only 160 wide, so let the title shrink instead of overflowing.
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  'LocalSend',
+                                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
                               SizedBox(height: 20),
                             ],
