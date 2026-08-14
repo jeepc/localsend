@@ -60,6 +60,7 @@
     "refresh": "重新整理",
     "checking": "正在檢測連線…",
     "fileMessage": "檔案",
+    "multipleFiles": "{fileName} 等 {count} 個檔案",
     "fileMissing": "檔案不存在，傳送失敗",
     "clearConversation": "清空聊天記錄",
     "emptyConversation": "還沒有訊息",

@@ -222,6 +222,8 @@ class Translations$chatTab$zh_HK extends Translations$chatTab$en {
   @override
   String get fileMessage => '檔案';
   @override
+  String multipleFiles({required Object fileName, required Object count}) => '${fileName} 等 ${count} 個檔案';
+  @override
   String get fileMissing => '檔案不存在，傳送失敗';
   @override
   String get clearConversation => '清空聊天記錄';

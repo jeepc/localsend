@@ -60,6 +60,7 @@
     "refresh": "Refresh",
     "checking": "Checking reachability…",
     "fileMessage": "File",
+    "multipleFiles": "{fileName}, {count} files",
     "fileMissing": "The file no longer exists. Sending failed.",
     "clearConversation": "Clear conversation",
     "emptyConversation": "No messages yet",

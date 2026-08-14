@@ -157,10 +157,19 @@ class ChatMessageMapper extends ClassMapperBase<ChatMessage> {
     'fileSize',
     _$fileSize,
   );
-  static String? _$filePath(ChatMessage v) => v.filePath;
-  static const Field<ChatMessage, String> _f$filePath = Field(
-    'filePath',
-    _$filePath,
+  static List<String> _$filePaths(ChatMessage v) => v.filePaths;
+  static const Field<ChatMessage, List<String>> _f$filePaths = Field(
+    'filePaths',
+    _$filePaths,
+    opt: true,
+    def: const [],
+  );
+  static int _$fileCount(ChatMessage v) => v.fileCount;
+  static const Field<ChatMessage, int> _f$fileCount = Field(
+    'fileCount',
+    _$fileCount,
+    opt: true,
+    def: 1,
   );
   static DateTime _$timestamp(ChatMessage v) => v.timestamp;
   static const Field<ChatMessage, DateTime> _f$timestamp = Field(
@@ -182,7 +191,8 @@ class ChatMessageMapper extends ClassMapperBase<ChatMessage> {
     #text: _f$text,
     #fileName: _f$fileName,
     #fileSize: _f$fileSize,
-    #filePath: _f$filePath,
+    #filePaths: _f$filePaths,
+    #fileCount: _f$fileCount,
     #timestamp: _f$timestamp,
     #status: _f$status,
   };
@@ -196,7 +206,8 @@ class ChatMessageMapper extends ClassMapperBase<ChatMessage> {
       text: data.dec(_f$text),
       fileName: data.dec(_f$fileName),
       fileSize: data.dec(_f$fileSize),
-      filePath: data.dec(_f$filePath),
+      filePaths: data.dec(_f$filePaths),
+      fileCount: data.dec(_f$fileCount),
       timestamp: data.dec(_f$timestamp),
       status: data.dec(_f$status),
     );
@@ -262,6 +273,7 @@ extension ChatMessageValueCopy<$R, $Out>
 
 abstract class ChatMessageCopyWith<$R, $In extends ChatMessage, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get filePaths;
   $R call({
     String? id,
     String? peerFingerprint,
@@ -270,7 +282,8 @@ abstract class ChatMessageCopyWith<$R, $In extends ChatMessage, $Out>
     String? text,
     String? fileName,
     int? fileSize,
-    String? filePath,
+    List<String>? filePaths,
+    int? fileCount,
     DateTime? timestamp,
     ChatMessageStatus? status,
   });
@@ -286,6 +299,13 @@ class _ChatMessageCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ChatMessage> $mapper =
       ChatMessageMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get filePaths =>
+      ListCopyWith(
+        $value.filePaths,
+        (v, t) => ObjectCopyWith(v, $identity, t),
+        (v) => call(filePaths: v),
+      );
+  @override
   $R call({
     String? id,
     String? peerFingerprint,
@@ -294,7 +314,8 @@ class _ChatMessageCopyWithImpl<$R, $Out>
     Object? text = $none,
     Object? fileName = $none,
     Object? fileSize = $none,
-    Object? filePath = $none,
+    List<String>? filePaths,
+    int? fileCount,
     DateTime? timestamp,
     ChatMessageStatus? status,
   }) => $apply(
@@ -306,7 +327,8 @@ class _ChatMessageCopyWithImpl<$R, $Out>
       if (text != $none) #text: text,
       if (fileName != $none) #fileName: fileName,
       if (fileSize != $none) #fileSize: fileSize,
-      if (filePath != $none) #filePath: filePath,
+      if (filePaths != null) #filePaths: filePaths,
+      if (fileCount != null) #fileCount: fileCount,
       if (timestamp != null) #timestamp: timestamp,
       if (status != null) #status: status,
     }),
@@ -320,7 +342,8 @@ class _ChatMessageCopyWithImpl<$R, $Out>
     text: data.get(#text, or: $value.text),
     fileName: data.get(#fileName, or: $value.fileName),
     fileSize: data.get(#fileSize, or: $value.fileSize),
-    filePath: data.get(#filePath, or: $value.filePath),
+    filePaths: data.get(#filePaths, or: $value.filePaths),
+    fileCount: data.get(#fileCount, or: $value.fileCount),
     timestamp: data.get(#timestamp, or: $value.timestamp),
     status: data.get(#status, or: $value.status),
   );

@@ -16,7 +16,9 @@ class ChatPanel extends StatefulWidget {
   final VoidCallback onPickFiles;
   final VoidCallback onPickImages;
   final ValueChanged<ChatMessage> onResend;
-  final ValueChanged<ChatMessage> onOpenFile;
+
+  /// Opens one file of a message; a message can stand for several of them.
+  final void Function(ChatMessage message, String filePath) onOpenFile;
   final VoidCallback onClearConversation;
 
   const ChatPanel({
@@ -123,7 +125,7 @@ class _ChatPanelState extends State<ChatPanel> {
                     return ChatBubble(
                       message: message,
                       onResend: message.status == ChatMessageStatus.failed ? () => widget.onResend(message) : null,
-                      onOpenFile: message.filePath != null ? () => widget.onOpenFile(message) : null,
+                      onOpenFile: (filePath) => widget.onOpenFile(message, filePath),
                     );
                   },
                 ),

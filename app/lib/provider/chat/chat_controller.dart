@@ -314,33 +314,30 @@ class HandleUnfriendAction extends AsyncGlobalAction {
   }
 }
 
-/// Records a file that was transferred to or from a friend as a chat message.
+/// Records files that were transferred to or from a friend as one chat message.
 ///
 /// File messages carry no protocol marker: any file exchanged with a friend
 /// belongs to that conversation, which is also what the user expects.
-class RecordFileMessageAction extends AsyncGlobalAction {
+class RecordFilesMessageAction extends AsyncGlobalAction {
   final String fingerprint;
   final bool outgoing;
-  final String fileName;
-  final int fileSize;
-  final String? filePath;
-  final bool isImage;
+
+  /// The files of a single transfer, which become a single message.
+  final List<ChatFile> files;
 
   /// Defaults to sent/received. Pass [ChatMessageStatus.failed] to leave a
-  /// record of a file that never made it, so the user can retry it.
+  /// record of files that never made it, so the user can retry them.
   final ChatMessageStatus? status;
 
-  /// Chosen by the caller when it wants to address the message later, e.g. to
-  /// move it to another status once a retry of that file finishes.
+  /// Identifies the transfer. Files reported one after another are folded into
+  /// the message with this id, and the caller can move that message to another
+  /// status later. A new message is appended when it is null.
   final String? messageId;
 
-  RecordFileMessageAction({
+  RecordFilesMessageAction({
     required this.fingerprint,
     required this.outgoing,
-    required this.fileName,
-    required this.fileSize,
-    required this.filePath,
-    required this.isImage,
+    required this.files,
     this.status,
     this.messageId,
   });
@@ -353,17 +350,12 @@ class RecordFileMessageAction extends AsyncGlobalAction {
     await ref
         .redux(chatProvider)
         .dispatchAsync(
-          AppendMessageAction(
-            ChatMessage.file(
-              peerFingerprint: fingerprint,
-              outgoing: outgoing,
-              fileName: fileName,
-              fileSize: fileSize,
-              filePath: filePath,
-              isImage: isImage,
-              status: status,
-              id: messageId,
-            ),
+          AppendFilesAction(
+            fingerprint: fingerprint,
+            outgoing: outgoing,
+            files: files,
+            status: status,
+            messageId: messageId,
           ),
         );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/model/persistence/chat_message.dart';
+import 'package:localsend_app/widget/dialogs/chat_files_dialog.dart';
 import 'package:localsend_isolates/util/file_size_helper.dart';
 
 const _textMaxWidth = 420.0;
@@ -15,7 +16,10 @@ const _fileMaxWidth = 260.0;
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
   final VoidCallback? onResend;
-  final VoidCallback? onOpenFile;
+
+  /// Opens one of the files of the message, picked by the user when there is
+  /// more than one.
+  final void Function(String filePath)? onOpenFile;
 
   const ChatBubble({
     required this.message,
@@ -79,7 +83,7 @@ class ChatBubble extends StatelessWidget {
 class _FileContent extends StatelessWidget {
   final ChatMessage message;
   final Color foreground;
-  final VoidCallback? onOpenFile;
+  final void Function(String filePath)? onOpenFile;
 
   const _FileContent({
     required this.message,
@@ -87,10 +91,31 @@ class _FileContent extends StatelessWidget {
     required this.onOpenFile,
   });
 
+  /// Files that were sent together are one message, so the bubble names the
+  /// first file and says how many there are in total.
+  String get _label {
+    final fileName = message.fileName ?? t.chatTab.fileMessage;
+    return message.fileCount > 1 ? t.chatTab.multipleFiles(fileName: fileName, count: message.fileCount) : fileName;
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final filePaths = message.filePaths;
+    if (filePaths.length == 1) {
+      onOpenFile!(filePaths.first);
+      return;
+    }
+
+    // Which of them the user meant is only clear once they say so.
+    final picked = await ChatFilesDialog.open(context, title: _label, filePaths: filePaths);
+    if (picked != null) {
+      onOpenFile!(picked);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: message.filePath != null ? onOpenFile : null,
+      onTap: onOpenFile != null && message.filePaths.isNotEmpty ? () => _open(context) : null,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -105,7 +130,7 @@ class _FileContent extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  message.fileName ?? t.chatTab.fileMessage,
+                  _label,
                   style: TextStyle(color: foreground),
                   overflow: TextOverflow.ellipsis,
                 ),

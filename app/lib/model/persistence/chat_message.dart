@@ -24,6 +24,9 @@ enum ChatMessageStatus {
   received,
 }
 
+/// One file of a transfer, as it is recorded in a conversation.
+typedef ChatFile = ({String fileName, int fileSize, String? filePath, bool isImage});
+
 /// One entry of a conversation with a [Friend].
 ///
 /// Conversations are keyed by the peer's certificate fingerprint and stored one
@@ -42,13 +45,26 @@ class ChatMessage with ChatMessageMappable {
   /// The message body for [ChatMessageType.text].
   final String? text;
 
-  /// The original file name for file and image messages.
+  /// The original name of the first file for file and image messages. The names
+  /// of the other files of a multi-file message are not kept: the bubble only
+  /// ever shows the first one plus [fileCount].
   final String? fileName;
 
+  /// Total size of every file of the message.
   final int? fileSize;
 
-  /// Where the file landed on this device, if it is still known.
-  final String? filePath;
+  /// Where the files landed on this device, in transfer order, as far as they
+  /// are still known. Shorter than [fileCount] when a file has no local path,
+  /// e.g. one that was never saved.
+  final List<String> filePaths;
+
+  /// How many files this message stands for.
+  ///
+  /// Files that were transferred together become one message instead of one
+  /// message per file: they were picked and sent as one action, and one bubble
+  /// per file both floods the conversation and made the concurrent appends of a
+  /// multi-file transfer overwrite each other.
+  final int fileCount;
 
   final DateTime timestamp;
   final ChatMessageStatus status;
@@ -61,10 +77,15 @@ class ChatMessage with ChatMessageMappable {
     required this.text,
     required this.fileName,
     required this.fileSize,
-    required this.filePath,
+    this.filePaths = const [],
+    this.fileCount = 1,
     required this.timestamp,
     required this.status,
   });
+
+  /// The first file of the message, which is the only one for the ordinary
+  /// single-file case.
+  String? get filePath => filePaths.isEmpty ? null : filePaths.first;
 
   factory ChatMessage.outgoingText({
     required String peerFingerprint,
@@ -79,7 +100,6 @@ class ChatMessage with ChatMessageMappable {
       text: text,
       fileName: null,
       fileSize: null,
-      filePath: null,
       timestamp: DateTime.now().toUtc(),
       status: ChatMessageStatus.sending,
     );
@@ -99,19 +119,17 @@ class ChatMessage with ChatMessageMappable {
       text: text,
       fileName: null,
       fileSize: null,
-      filePath: null,
       timestamp: timestamp,
       status: ChatMessageStatus.received,
     );
   }
 
-  factory ChatMessage.file({
+  /// One message for all [files] of a transfer. Must not be called with an
+  /// empty list.
+  factory ChatMessage.files({
     required String peerFingerprint,
     required bool outgoing,
-    required String fileName,
-    required int fileSize,
-    required String? filePath,
-    required bool isImage,
+    required List<ChatFile> files,
     ChatMessageStatus? status,
     String? id,
   }) {
@@ -119,13 +137,33 @@ class ChatMessage with ChatMessageMappable {
       id: id ?? _uuid.v4(),
       peerFingerprint: peerFingerprint,
       outgoing: outgoing,
-      type: isImage ? ChatMessageType.image : ChatMessageType.file,
+      // Only a batch in which every file is an image counts as one, so a mixed
+      // selection does not claim to be a picture.
+      type: files.every((file) => file.isImage) ? ChatMessageType.image : ChatMessageType.file,
       text: null,
-      fileName: fileName,
-      fileSize: fileSize,
-      filePath: filePath,
+      fileName: files.first.fileName,
+      fileSize: files.fold<int>(0, (sum, file) => sum + file.fileSize),
+      filePaths: [
+        for (final file in files)
+          if (file.filePath != null) file.filePath!,
+      ],
+      fileCount: files.length,
       timestamp: DateTime.now().toUtc(),
       status: status ?? (outgoing ? ChatMessageStatus.sent : ChatMessageStatus.received),
+    );
+  }
+
+  /// Folds another file of the same transfer into this message, for the
+  /// receiving side, where the files arrive one after another.
+  ChatMessage withFile(ChatFile file) {
+    return copyWith(
+      type: type == ChatMessageType.image && file.isImage ? ChatMessageType.image : ChatMessageType.file,
+      fileSize: (fileSize ?? 0) + file.fileSize,
+      filePaths: [
+        ...filePaths,
+        if (file.filePath != null) file.filePath!,
+      ],
+      fileCount: fileCount + 1,
     );
   }
 

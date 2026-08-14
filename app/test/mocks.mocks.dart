@@ -213,6 +213,14 @@ class MockPersistenceService extends _i1.Mock implements _i4.PersistenceService 
           as List<_i11.ChatMessage>);
 
   @override
+  DateTime? getLastChatMessageTime(String? fingerprint) =>
+      (super.noSuchMethod(
+            Invocation.method(#getLastChatMessageTime, [fingerprint]),
+            returnValueForMissingStub: null,
+          )
+          as DateTime?);
+
+  @override
   _i5.Future<void> setChatMessages(
     String? fingerprint,
     List<_i11.ChatMessage>? entries,

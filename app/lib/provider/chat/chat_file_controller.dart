@@ -61,19 +61,16 @@ Future<bool> _collectAndSend(
   if (target == null) {
     // Nothing to send to, but the user did pick these files, so they show up as
     // undelivered instead of disappearing.
-    for (final file in collected) {
-      await ref.global.dispatchAsync(
-        RecordFileMessageAction(
-          fingerprint: fingerprint,
-          outgoing: true,
-          fileName: file.name,
-          fileSize: file.size,
-          filePath: file.path,
-          isImage: file.fileType == FileType.image,
-          status: ChatMessageStatus.failed,
-        ),
-      );
-    }
+    await ref.global.dispatchAsync(
+      RecordFilesMessageAction(
+        fingerprint: fingerprint,
+        outgoing: true,
+        files: [
+          for (final file in collected) (fileName: file.name, fileSize: file.size, filePath: file.path, isImage: file.fileType == FileType.image),
+        ],
+        status: ChatMessageStatus.failed,
+      ),
+    );
     return true;
   }
 
@@ -161,9 +158,11 @@ class ResendChatFileMessageAction extends AsyncGlobalAction {
           ),
         );
 
-    final path = message.filePath;
-    if (path == null || !File(path).existsSync()) {
-      // The file was moved or deleted since it was picked; there is nothing left to send.
+    // All or nothing: a bubble that stands for several files must not end up
+    // claiming to be delivered when only some of them were still around.
+    final paths = message.filePaths;
+    if (paths.length != message.fileCount || paths.any((path) => !File(path).existsSync())) {
+      // A file was moved or deleted since it was picked; there is nothing left to send.
       await markFailed();
       // The global navigator context, which outlives the awaits above.
       // ignore: use_build_context_synchronously
@@ -187,7 +186,9 @@ class ResendChatFileMessageAction extends AsyncGlobalAction {
           ),
         );
 
-    final file = await CrossFileConverters.convertFile(File(path));
-    await ref.notifier(sendProvider).startSession(target: target, files: [file], background: true, chatMessageId: message.id);
+    final files = [
+      for (final path in paths) await CrossFileConverters.convertFile(File(path)),
+    ];
+    await ref.notifier(sendProvider).startSession(target: target, files: files, background: true, chatMessageId: message.id);
   }
 }

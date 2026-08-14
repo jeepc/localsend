@@ -60,6 +60,7 @@
     "refresh": "刷新",
     "checking": "正在检测连接…",
     "fileMessage": "文件",
+    "multipleFiles": "{fileName} 等 {count} 个文件",
     "fileMissing": "文件不存在，发送失败",
     "clearConversation": "清空聊天记录",
     "emptyConversation": "还没有消息",

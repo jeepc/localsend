@@ -490,14 +490,22 @@ class ReceiveController {
       // Mirror it into the conversation when it came from a friend. File
       // messages carry no protocol marker: any file exchanged with a friend
       // belongs to that chat, which is also what the user expects to see.
+      //
+      // The files of a session are folded into one message — they were sent as
+      // one action — so the session id is used as the message id.
       await server.ref.global.dispatchAsync(
-        RecordFileMessageAction(
+        RecordFilesMessageAction(
           fingerprint: receiveState.sender.fingerprint,
           outgoing: false,
-          fileName: receivingFile.desiredName!,
-          fileSize: receivingFile.file.size,
-          filePath: filePath,
-          isImage: fileType == FileType.image,
+          files: [
+            (
+              fileName: receivingFile.desiredName!,
+              fileSize: receivingFile.file.size,
+              filePath: filePath,
+              isImage: fileType == FileType.image,
+            ),
+          ],
+          messageId: receiveState.sessionId,
         ),
       );
     } else {

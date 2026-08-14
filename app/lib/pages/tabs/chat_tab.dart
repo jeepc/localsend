@@ -154,10 +154,8 @@ class _ChatTabState extends State<ChatTab> with Refena, WidgetsBindingObserver {
                 message.type == ChatMessageType.text ? ResendChatMessageAction(message) : ResendChatFileMessageAction(message),
               );
             },
-            onOpenFile: (ChatMessage message) async {
-              if (message.filePath != null) {
-                await openFile(context, message.type == ChatMessageType.image ? FileType.image : FileType.other, message.filePath!);
-              }
+            onOpenFile: (ChatMessage message, String filePath) async {
+              await openFile(context, message.type == ChatMessageType.image ? FileType.image : FileType.other, filePath);
             },
             onClearConversation: () async {
               await ref.redux(chatProvider).dispatchAsync(ClearConversationAction(vm.selectedFriend!.fingerprint));

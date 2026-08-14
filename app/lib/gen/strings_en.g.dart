@@ -254,6 +254,9 @@ class Translations$chatTab$en {
   /// en: 'File'
   String get fileMessage => 'File';
 
+  /// en: '{fileName}, {count} files'
+  String multipleFiles({required Object fileName, required Object count}) => '${fileName}, ${count} files';
+
   /// en: 'The file no longer exists. Sending failed.'
   String get fileMissing => 'The file no longer exists. Sending failed.';
 

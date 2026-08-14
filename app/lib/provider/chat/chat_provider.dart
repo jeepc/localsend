@@ -59,11 +59,68 @@ class AppendMessageAction extends AsyncReduxAction<ChatService, Map<String, List
       return state;
     }
 
-    final combined = [...existing, message];
-    final trimmed = combined.length > maxMessagesPerConversation ? combined.sublist(combined.length - maxMessagesPerConversation) : combined;
+    final trimmed = _capped([...existing, message]);
 
     await notifier._persistence.setChatMessages(fingerprint, trimmed);
     return {...state, fingerprint: List.unmodifiable(trimmed)};
+  }
+}
+
+/// Records files of one transfer as a single message.
+///
+/// A transfer is one message, not one per file, so [messageId] identifies the
+/// transfer: files that arrive one after another are folded into the message
+/// that is already there. Without an id every call appends its own message.
+class AppendFilesAction extends AsyncReduxAction<ChatService, Map<String, List<ChatMessage>>> {
+  final String fingerprint;
+  final bool outgoing;
+  final List<ChatFile> files;
+  final ChatMessageStatus? status;
+  final String? messageId;
+
+  AppendFilesAction({
+    required this.fingerprint,
+    required this.outgoing,
+    required this.files,
+    required this.status,
+    required this.messageId,
+  });
+
+  @override
+  Future<Map<String, List<ChatMessage>>> reduce() async {
+    if (files.isEmpty) {
+      await Future.microtask(() {});
+      return state;
+    }
+
+    final existing = state[fingerprint] ?? notifier._persistence.getChatMessages(fingerprint);
+    final index = messageId == null ? -1 : existing.indexWhere((e) => e.id == messageId);
+
+    final List<ChatMessage> updated;
+    if (index == -1) {
+      updated = _capped([
+        ...existing,
+        ChatMessage.files(
+          peerFingerprint: fingerprint,
+          outgoing: outgoing,
+          files: files,
+          status: status,
+          id: messageId,
+        ),
+      ]);
+    } else {
+      var message = existing[index];
+      for (final file in files) {
+        message = message.withFile(file);
+      }
+      if (status != null) {
+        message = message.copyWith(status: status);
+      }
+      updated = <ChatMessage>[...existing]..replaceRange(index, index + 1, [message]);
+    }
+
+    await notifier._persistence.setChatMessages(fingerprint, updated);
+    return {...state, fingerprint: List.unmodifiable(updated)};
   }
 }
 
@@ -134,4 +191,9 @@ class ClearConversationAction extends AsyncReduxAction<ChatService, Map<String, 
     await notifier._persistence.removeChatMessages(fingerprint);
     return {...state, fingerprint: const []};
   }
+}
+
+/// Drops the oldest messages of a conversation that grew past the cap.
+List<ChatMessage> _capped(List<ChatMessage> messages) {
+  return messages.length > maxMessagesPerConversation ? messages.sublist(messages.length - maxMessagesPerConversation) : messages;
 }

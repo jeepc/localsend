@@ -62,13 +62,14 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
   /// Session ID -> Cancel token
   final _prepareUploadCancelTokens = <String, rust_cancel.RsCancellationToken>{};
 
-  /// Chat bubbles created for the files of a session.
-  /// Session ID -> (file ID -> chat message ID)
+  /// Chat bubble created for the files of a session.
+  /// Session ID -> chat message ID
   ///
-  /// A file can be reported more than once — a retry from the progress page
-  /// finishes the session a second time — so its bubble is moved to the new
-  /// status instead of a second one being appended.
-  final _chatMessageIds = <String, Map<String, String>>{};
+  /// All files of a session share one bubble, and a session can be reported
+  /// more than once — a retry from the progress page finishes it a second time
+  /// — so that bubble is moved to the new status instead of a second one being
+  /// appended.
+  final _chatMessageIds = <String, String>{};
 
   @override
   Map<String, SendSessionState> init() {
@@ -585,22 +586,22 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
   /// belongs to that chat, which is what the user expects to see. The chat
   /// action itself ignores non-friends, so no check is needed here.
   ///
-  /// Files that did not arrive are recorded as well, as failed: a file that
-  /// silently vanishes is worse than one the user can see and retry.
+  /// The whole session becomes one message, so a session in which one file did
+  /// not arrive counts as not delivered: the retry resends the batch.
   void _recordFilesToFriend(SendSessionState sessionState) {
     final transfer = ref.read(fileTransferProvider);
+    var delivered = true;
     for (final sendingFile in sessionState.files.values) {
-      final delivered = transfer.getStatus(sessionId: sessionState.sessionId, fileId: sendingFile.file.id) == FileStatus.finished;
-      _recordFileToFriend(
-        sessionState,
-        sendingFile,
-        delivered ? ChatMessageStatus.sent : ChatMessageStatus.failed,
-      );
+      if (transfer.getStatus(sessionId: sessionState.sessionId, fileId: sendingFile.file.id) != FileStatus.finished) {
+        delivered = false;
+        break;
+      }
     }
+    _recordSessionToFriend(sessionState, delivered ? ChatMessageStatus.sent : ChatMessageStatus.failed);
   }
 
-  /// Reports the files of a session that never reached [_finish], and therefore
-  /// have no bubble yet, as failed. Files already reported keep their status.
+  /// Reports a session that never reached [_finish], and therefore has no
+  /// bubble yet, as failed. A session already reported keeps its status.
   void _recordUnreportedFilesAsFailed(String sessionId) {
     final sessionState = state[sessionId];
     if (sessionState == null) {
@@ -611,33 +612,38 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       // The user aborted it themselves, so there is no failure to report.
       return;
     }
-
-    final recorded = _chatMessageIds[sessionId];
-    for (final sendingFile in sessionState.files.values) {
-      if (recorded != null && recorded.containsKey(sendingFile.file.id)) {
-        continue;
-      }
-      _recordFileToFriend(sessionState, sendingFile, ChatMessageStatus.failed);
-    }
-  }
-
-  void _recordFileToFriend(SendSessionState sessionState, SendingFile sendingFile, ChatMessageStatus status) {
-    if (sendingFile.file.fileType == FileType.text && sendingFile.file.preview != null) {
-      // A plain text "message" transfer, not a file the user picked.
+    if (_chatMessageIds.containsKey(sessionId)) {
       return;
     }
 
-    final messageIds = _chatMessageIds.putIfAbsent(sessionState.sessionId, () {
-      final retriedMessageId = sessionState.chatMessageId;
-      if (retriedMessageId == null) {
-        return {};
-      }
-      // The session retries an existing bubble, so its single file already has one.
-      return {for (final fileId in sessionState.files.keys) fileId: retriedMessageId};
-    });
+    _recordSessionToFriend(sessionState, ChatMessageStatus.failed);
+  }
 
-    final existingMessageId = messageIds[sendingFile.file.id];
+  /// Records the session as one chat message, or moves the message it already
+  /// has to [status].
+  ///
+  /// Files that did not arrive are recorded as well, as failed: a file that
+  /// silently vanishes is worse than one the user can see and retry.
+  void _recordSessionToFriend(SendSessionState sessionState, ChatMessageStatus status) {
+    final files = <ChatFile>[
+      for (final sendingFile in sessionState.files.values)
+        // Skip the plain text "message" transfers, which are not files the user picked.
+        if (sendingFile.file.fileType != FileType.text || sendingFile.file.preview == null)
+          (
+            fileName: sendingFile.file.fileName,
+            fileSize: sendingFile.file.size,
+            filePath: sendingFile.path,
+            isImage: sendingFile.file.fileType == FileType.image,
+          ),
+    ];
+    if (files.isEmpty) {
+      return;
+    }
+
+    // The session retries an existing bubble, so it must not append a second one.
+    final existingMessageId = _chatMessageIds[sessionState.sessionId] ?? sessionState.chatMessageId;
     if (existingMessageId != null) {
+      _chatMessageIds[sessionState.sessionId] = existingMessageId;
       unawaited(
         ref
             .redux(chatProvider)
@@ -653,16 +659,13 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     }
 
     final messageId = _uuid.v4();
-    messageIds[sendingFile.file.id] = messageId;
+    _chatMessageIds[sessionState.sessionId] = messageId;
     unawaited(
       ref.global.dispatchAsync(
-        RecordFileMessageAction(
+        RecordFilesMessageAction(
           fingerprint: sessionState.target.fingerprint,
           outgoing: true,
-          fileName: sendingFile.file.fileName,
-          fileSize: sendingFile.file.size,
-          filePath: sendingFile.path,
-          isImage: sendingFile.file.fileType == FileType.image,
+          files: files,
           status: status,
           messageId: messageId,
         ),
