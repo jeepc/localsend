@@ -1,6 +1,9 @@
 import 'package:localsend_app/model/persistence/chat_message.dart';
 import 'package:localsend_app/provider/persistence_provider.dart';
+import 'package:logging/logging.dart';
 import 'package:refena_flutter/refena_flutter.dart';
+
+final _logger = Logger('Chat');
 
 /// Maximum number of messages kept per conversation.
 /// Older ones are dropped, mirroring the cap on the receive history.
@@ -180,6 +183,44 @@ class UpdateMessageStatusAction extends AsyncReduxAction<ChatService, Map<String
     return {...state, fingerprint: List.unmodifiable(updated)};
   }
 }
+
+/// Fails the outgoing messages that were still on their way when the app was
+/// last closed.
+///
+/// A transfer only ever lives in memory: the send provider settles its bubble
+/// from a map that dies with the process, while the [ChatMessageStatus.sending]
+/// row stays on disk. Anything still sending at startup therefore has no
+/// session behind it and would spin forever, so it is finished as failed — the
+/// one status the conversation offers a retry for.
+///
+/// Must run before any conversation is loaded and before a session can start,
+/// otherwise it would fail a transfer that is genuinely in flight.
+class FailInterruptedMessagesAction extends AsyncReduxAction<ChatService, Map<String, List<ChatMessage>>> {
+  @override
+  Future<Map<String, List<ChatMessage>>> reduce() async {
+    for (final fingerprint in notifier._persistence.getChatFingerprints()) {
+      try {
+        final messages = notifier._persistence.getChatMessages(fingerprint);
+        if (!messages.any(_isInterrupted)) {
+          // Untouched conversations are not rewritten.
+          continue;
+        }
+        await notifier._persistence.setChatMessages(fingerprint, [
+          for (final message in messages) _isInterrupted(message) ? message.copyWith(status: ChatMessageStatus.failed) : message,
+        ]);
+      } catch (e) {
+        // One unreadable conversation must not hold up the app start.
+        _logger.warning('Could not fail the interrupted messages of $fingerprint', e);
+      }
+    }
+
+    // Conversations are loaded lazily and none of them is in memory yet, so
+    // there is nothing to update here.
+    return state;
+  }
+}
+
+bool _isInterrupted(ChatMessage message) => message.outgoing && message.status == ChatMessageStatus.sending;
 
 class ClearConversationAction extends AsyncReduxAction<ChatService, Map<String, List<ChatMessage>>> {
   final String fingerprint;

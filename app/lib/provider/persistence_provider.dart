@@ -68,7 +68,8 @@ const _knownNetworks = 'ls_known_networks';
 const _pendingFriendRequests = 'ls_pending_friend_requests';
 
 // One key per conversation, so appending a message does not rewrite all the others.
-String _chatKey(String fingerprint) => 'ls_chat_$fingerprint';
+const _chatKeyPrefix = 'ls_chat_';
+String _chatKey(String fingerprint) => '$_chatKeyPrefix$fingerprint';
 
 // App Window Offset and Size info
 const _windowOffsetX = 'ls_window_offset_x';
@@ -313,6 +314,12 @@ class PersistenceService {
   Future<void> setPendingFriendRequests(List<PendingFriendRequest> entries) async {
     final requestsRaw = entries.map((entry) => jsonEncode(entry.toJson())).toList();
     await _prefs.setStringList(_pendingFriendRequests, requestsRaw);
+  }
+
+  /// Fingerprints of every conversation that exists on disk, including the ones
+  /// that were never loaded into memory during this launch.
+  List<String> getChatFingerprints() {
+    return _prefs.getKeys().where((key) => key.startsWith(_chatKeyPrefix)).map((key) => key.substring(_chatKeyPrefix.length)).toList();
   }
 
   List<ChatMessage> getChatMessages(String fingerprint) {

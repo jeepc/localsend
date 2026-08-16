@@ -13,6 +13,7 @@ import 'package:localsend_app/pages/home_page_controller.dart';
 import 'package:localsend_app/pages/whats_new_page.dart';
 import 'package:localsend_app/provider/animation_provider.dart';
 import 'package:localsend_app/provider/app_arguments_provider.dart';
+import 'package:localsend_app/provider/chat/chat_provider.dart';
 import 'package:localsend_app/provider/device_info_provider.dart';
 import 'package:localsend_app/provider/network/nearby_devices_provider.dart';
 import 'package:localsend_app/provider/network/server/server_provider.dart';
@@ -149,6 +150,11 @@ Future<RefenaContainer> preInit(List<String> args) async {
 
   // compatibility for Routerino. TODO: Remove Routerino
   Routerino.navigatorKey = container.read(navigationProvider).key;
+
+  // Transfers do not survive a restart, so whatever the last run left behind as
+  // "sending" is finished as failed before it can be shown. Here because no
+  // session can exist yet: the server and the discovery start later.
+  await container.redux(chatProvider).dispatchAsync(FailInterruptedMessagesAction());
 
   // initialize multi-threading
   container.set(

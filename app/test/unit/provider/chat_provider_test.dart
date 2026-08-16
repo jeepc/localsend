@@ -1,5 +1,6 @@
 import 'package:localsend_app/model/persistence/chat_message.dart';
 import 'package:localsend_app/provider/chat/chat_provider.dart';
+import 'package:mockito/mockito.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 import 'package:test/test.dart';
 
@@ -157,8 +158,78 @@ void main() {
 
     expect(service.state[_fingerprint], anyOf(isNull, isEmpty));
   });
+
+  test('Should fail the messages that were still sending when the app was closed', () async {
+    // A transfer does not survive the process, so a persisted "sending" has no
+    // session behind it and would spin forever.
+    final service = ReduxNotifier.test(redux: ChatService(persistenceService));
+    final messages = [
+      _message('m1', outgoing: true, status: ChatMessageStatus.sending),
+      _message('m2', outgoing: true, status: ChatMessageStatus.sent),
+      _message('m3', outgoing: false, status: ChatMessageStatus.received),
+      _message('m4', outgoing: true, status: ChatMessageStatus.failed),
+      _message('m5', outgoing: true, status: ChatMessageStatus.sending),
+    ];
+    when(persistenceService.getChatFingerprints()).thenReturn([_fingerprint]);
+    when(persistenceService.getChatMessages(_fingerprint)).thenReturn(messages);
+
+    await service.dispatchAsync(FailInterruptedMessagesAction());
+
+    final written = verify(persistenceService.setChatMessages(_fingerprint, captureAny)).captured.single as List<ChatMessage>;
+    expect(
+      written.map((e) => e.status),
+      [
+        ChatMessageStatus.failed,
+        ChatMessageStatus.sent,
+        ChatMessageStatus.received,
+        ChatMessageStatus.failed,
+        ChatMessageStatus.failed,
+      ],
+    );
+  });
+
+  test('Should leave a conversation without interrupted messages untouched', () async {
+    final service = ReduxNotifier.test(redux: ChatService(persistenceService));
+    when(persistenceService.getChatFingerprints()).thenReturn([_fingerprint]);
+    when(persistenceService.getChatMessages(_fingerprint)).thenReturn([
+      _message('m1', outgoing: true, status: ChatMessageStatus.sent),
+      _message('m2', outgoing: false, status: ChatMessageStatus.received),
+    ]);
+
+    await service.dispatchAsync(FailInterruptedMessagesAction());
+
+    verifyNever(persistenceService.setChatMessages(any, any));
+  });
+
+  test('Should keep failing the other conversations when one cannot be read', () async {
+    final service = ReduxNotifier.test(redux: ChatService(persistenceService));
+    when(persistenceService.getChatFingerprints()).thenReturn(['broken', _fingerprint]);
+    when(persistenceService.getChatMessages('broken')).thenThrow(const FormatException());
+    when(persistenceService.getChatMessages(_fingerprint)).thenReturn([
+      _message('m1', outgoing: true, status: ChatMessageStatus.sending),
+    ]);
+
+    await service.dispatchAsync(FailInterruptedMessagesAction());
+
+    final written = verify(persistenceService.setChatMessages(_fingerprint, captureAny)).captured.single as List<ChatMessage>;
+    expect(written.single.status, ChatMessageStatus.failed);
+  });
 }
 
 ChatFile _file(String fileName, int fileSize, {required bool isImage}) {
   return (fileName: fileName, fileSize: fileSize, filePath: '$fileName.path', isImage: isImage);
+}
+
+ChatMessage _message(String id, {required bool outgoing, required ChatMessageStatus status}) {
+  return ChatMessage(
+    id: id,
+    peerFingerprint: _fingerprint,
+    outgoing: outgoing,
+    type: ChatMessageType.text,
+    text: id,
+    fileName: null,
+    fileSize: null,
+    timestamp: DateTime.utc(2026),
+    status: status,
+  );
 }

@@ -204,6 +204,15 @@ class MockPersistenceService extends _i1.Mock implements _i4.PersistenceService 
           as _i5.Future<void>);
 
   @override
+  List<String> getChatFingerprints() =>
+      (super.noSuchMethod(
+            Invocation.method(#getChatFingerprints, []),
+            returnValue: <String>[],
+            returnValueForMissingStub: <String>[],
+          )
+          as List<String>);
+
+  @override
   List<_i11.ChatMessage> getChatMessages(String? fingerprint) =>
       (super.noSuchMethod(
             Invocation.method(#getChatMessages, [fingerprint]),
