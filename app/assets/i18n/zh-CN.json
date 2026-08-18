@@ -64,6 +64,8 @@
     "fileMissing": "文件不存在，发送失败",
     "clearConversation": "清空聊天记录",
     "emptyConversation": "还没有消息",
+    "dropToSend": "发送给 {name}",
+    "dropOnFriend": "拖到好友列表中的好友可发送给其他人",
     "regroup": "移动到其他分组"
   },
   "receiveTab": {

@@ -8,6 +8,7 @@ import 'package:localsend_app/model/persistence/pending_friend_request.dart';
 import 'package:localsend_app/provider/chat/chat_provider.dart';
 import 'package:localsend_app/provider/chat/friends_provider.dart';
 import 'package:localsend_app/provider/chat/pending_friend_requests_provider.dart';
+import 'package:localsend_app/provider/chat/selected_friend_provider.dart';
 import 'package:localsend_app/provider/device_info_provider.dart';
 import 'package:localsend_app/provider/http_provider.dart';
 import 'package:localsend_app/provider/network/nearby_devices_provider.dart';
@@ -372,6 +373,15 @@ enum ChatSendResult {
 }
 
 extension ChatRefExt on Ref {
+  /// Opens a friend's conversation.
+  ///
+  /// Conversations are read from disk lazily, so selecting a friend is only
+  /// half of it — the history has to be requested as well.
+  void openConversation(String fingerprint) {
+    notifier(selectedFriendProvider).select(fingerprint);
+    redux(chatProvider).dispatch(LoadConversationAction(fingerprint));
+  }
+
   /// The best current address for a peer.
   ///
   /// Prefers a freshly discovered device over the address stored on the friend,

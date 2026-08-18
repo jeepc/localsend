@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:localsend_app/model/persistence/friend.dart';
 import 'package:localsend_app/pages/tabs/chat_tab_vm.dart';
+import 'package:localsend_app/provider/chat/chat_drop_provider.dart';
 import 'package:localsend_app/provider/chat/presence_provider.dart';
 import 'package:localsend_app/widget/chat/chat_divider.dart';
 import 'package:localsend_app/widget/chat/friend_avatar.dart';
+import 'package:localsend_app/widget/chat/friend_drop_zone.dart';
 import 'package:localsend_app/widget/chat/presence_refresh_button.dart';
+import 'package:refena_flutter/refena_flutter.dart';
 
 /// Mobile friend list: a horizontally scrollable strip pinned above the
 /// conversation, since a sidebar would eat most of a phone screen.
@@ -23,6 +26,7 @@ class FriendStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = vm.selectedFriend;
+    final hovered = context.watch(chatDropProvider).hoveredFingerprint;
 
     return Container(
       height: 96,
@@ -50,13 +54,17 @@ class FriendStrip extends StatelessWidget {
                     for (final friend in group.friends)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: _StripEntry(
-                          friend: friend,
-                          status: vm.statusOf(friend),
-                          dimmed: !group.isCurrent,
-                          selected: selected?.fingerprint == friend.fingerprint,
-                          onTap: () => onSelect(friend),
-                          onLongPress: () => onEdit(friend),
+                        child: FriendDropZone(
+                          fingerprint: friend.fingerprint,
+                          child: _StripEntry(
+                            friend: friend,
+                            status: vm.statusOf(friend),
+                            dimmed: !group.isCurrent,
+                            selected: selected?.fingerprint == friend.fingerprint,
+                            dropTarget: hovered == friend.fingerprint,
+                            onTap: () => onSelect(friend),
+                            onLongPress: () => onEdit(friend),
+                          ),
                         ),
                       ),
                   ],
@@ -75,6 +83,10 @@ class _StripEntry extends StatelessWidget {
   final PresenceStatus status;
   final bool dimmed;
   final bool selected;
+
+  /// A file drag is hovering over this entry: dropping now sends to this friend.
+  final bool dropTarget;
+
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -83,6 +95,7 @@ class _StripEntry extends StatelessWidget {
     required this.status,
     required this.dimmed,
     required this.selected,
+    required this.dropTarget,
     required this.onTap,
     required this.onLongPress,
   });
@@ -96,8 +109,12 @@ class _StripEntry extends StatelessWidget {
         onTap: onTap,
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(8),
-        child: SizedBox(
+        child: Container(
           width: 64,
+          decoration: BoxDecoration(
+            color: dropTarget ? theme.colorScheme.primary.withValues(alpha: 0.12) : null,
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -106,7 +123,7 @@ class _StripEntry extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: selected ? theme.colorScheme.primary : Colors.transparent,
+                    color: selected || dropTarget ? theme.colorScheme.primary : Colors.transparent,
                     width: 2,
                   ),
                 ),

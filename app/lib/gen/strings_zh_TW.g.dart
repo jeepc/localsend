@@ -230,6 +230,10 @@ class Translations$chatTab$zh_TW extends Translations$chatTab$en {
   @override
   String get emptyConversation => '還沒有訊息';
   @override
+  String dropToSend({required Object name}) => '傳送給 ${name}';
+  @override
+  String get dropOnFriend => '拖曳到好友清單中的好友可傳送給其他人';
+  @override
   String get regroup => '移動到其他分組';
 }
 

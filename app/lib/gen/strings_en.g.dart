@@ -266,6 +266,12 @@ class Translations$chatTab$en {
   /// en: 'No messages yet'
   String get emptyConversation => 'No messages yet';
 
+  /// en: 'Send to {name}'
+  String dropToSend({required Object name}) => 'Send to ${name}';
+
+  /// en: 'Drop on someone in the friend list to send to them instead'
+  String get dropOnFriend => 'Drop on someone in the friend list to send to them instead';
+
   /// en: 'Move to another group'
   String get regroup => 'Move to another group';
 }

@@ -10,12 +10,15 @@ import 'package:localsend_app/pages/tabs/chat_tab.dart';
 import 'package:localsend_app/pages/tabs/receive_tab.dart';
 import 'package:localsend_app/pages/tabs/send_tab.dart';
 import 'package:localsend_app/pages/tabs/settings_tab.dart';
+import 'package:localsend_app/provider/chat/chat_controller.dart';
+import 'package:localsend_app/provider/chat/chat_drop_provider.dart';
 import 'package:localsend_app/provider/chat/chat_file_controller.dart';
 import 'package:localsend_app/provider/chat/friends_provider.dart';
 import 'package:localsend_app/provider/chat/selected_friend_provider.dart';
 import 'package:localsend_app/provider/selection/selected_sending_files_provider.dart';
 import 'package:localsend_app/util/friends.dart';
 import 'package:localsend_app/util/native/cross_file_converters.dart';
+import 'package:localsend_app/widget/chat/friend_drop_zone.dart';
 import 'package:localsend_app/widget/responsive_builder.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 
@@ -67,6 +70,13 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with Refena {
   bool _dragAndDropIndicator = false;
 
+  /// The friend list row the drag is currently over.
+  ///
+  /// Only a fallback for the drop itself, which hit-tests the drop position:
+  /// the plugin reports the drag as exited right before it reports it as done,
+  /// so this is deliberately not cleared there — the next drag resets it.
+  String? _hoveredFingerprint;
+
   @override
   void initState() {
     super.initState();
@@ -87,13 +97,44 @@ class _HomePageState extends State<HomePage> with Refena {
         setState(() {
           _dragAndDropIndicator = true;
         });
+        _hoveredFingerprint = null;
+        if (vm.currentTab == HomeTab.chat) {
+          ref.notifier(chatDropProvider).hover(null);
+        }
+      },
+      onDragUpdated: (details) {
+        if (vm.currentTab != HomeTab.chat) {
+          return;
+        }
+        final fingerprint = friendFingerprintAt(context, details.globalPosition);
+        if (fingerprint != _hoveredFingerprint) {
+          _hoveredFingerprint = fingerprint;
+          ref.notifier(chatDropProvider).hover(fingerprint);
+        }
       },
       onDragExited: (_) {
         setState(() {
           _dragAndDropIndicator = false;
         });
+        ref.notifier(chatDropProvider).stop();
       },
       onDragDone: (event) async {
+        final droppedOn = vm.currentTab == HomeTab.chat ? (friendFingerprintAt(context, event.globalPosition) ?? _hoveredFingerprint) : null;
+        _hoveredFingerprint = null;
+        ref.notifier(chatDropProvider).stop();
+
+        if (droppedOn != null && ref.read(friendsProvider).containsFingerprint(droppedOn)) {
+          // A row in the friend list names its own recipient, so this wins over
+          // whichever conversation happens to be open. Opening it as well puts
+          // the transfer where the user can watch it — and retry it, should the
+          // friend be unreachable.
+          ref.openConversation(droppedOn);
+          await ref.global.dispatchAsync(
+            SendChatDroppedFilesAction(fingerprint: droppedOn, files: event.files),
+          );
+          return;
+        }
+
         // Dropping onto an open conversation means "send this to them", not
         // "stage this for some device I have yet to pick".
         final selectedFriend = ref.read(selectedFriendProvider);
@@ -176,7 +217,10 @@ class _HomePageState extends State<HomePage> with Refena {
                             SettingsTab(),
                           ],
                         ),
-                        if (_dragAndDropIndicator)
+                        // The chat tab draws its own hint over the conversation
+                        // only: covering the friend list would hide the very
+                        // rows the drag can be aimed at.
+                        if (_dragAndDropIndicator && vm.currentTab != HomeTab.chat)
                           Container(
                             width: double.infinity,
                             decoration: BoxDecoration(

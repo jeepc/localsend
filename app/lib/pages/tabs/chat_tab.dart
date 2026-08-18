@@ -7,10 +7,10 @@ import 'package:localsend_app/pages/home_page.dart';
 import 'package:localsend_app/pages/home_page_controller.dart';
 import 'package:localsend_app/pages/tabs/chat_tab_vm.dart';
 import 'package:localsend_app/provider/chat/chat_controller.dart';
+import 'package:localsend_app/provider/chat/chat_drop_provider.dart';
 import 'package:localsend_app/provider/chat/chat_file_controller.dart';
 import 'package:localsend_app/provider/chat/chat_provider.dart';
 import 'package:localsend_app/provider/chat/presence_provider.dart';
-import 'package:localsend_app/provider/chat/selected_friend_provider.dart';
 import 'package:localsend_app/util/native/file_picker.dart';
 import 'package:localsend_app/util/native/open_file.dart';
 import 'package:localsend_app/widget/chat/chat_divider.dart';
@@ -71,9 +71,7 @@ class _ChatTabState extends State<ChatTab> with Refena, WidgetsBindingObserver {
   }
 
   void _selectFriend(Friend friend) {
-    ref.notifier(selectedFriendProvider).select(friend.fingerprint);
-    // Conversations are lazily read from disk on first open.
-    ref.redux(chatProvider).dispatch(LoadConversationAction(friend.fingerprint));
+    ref.openConversation(friend.fingerprint);
   }
 
   /// Opens the most recent conversation whenever nothing is selected: on app
@@ -162,13 +160,23 @@ class _ChatTabState extends State<ChatTab> with Refena, WidgetsBindingObserver {
             },
           );
 
+    // A file drag over the conversation goes to the friend it belongs to, so the
+    // hint sits over the conversation only and leaves the friend list — the way
+    // to aim at somebody else — visible.
+    final panelWithDropHint = Stack(
+      children: [
+        panel,
+        Positioned.fill(child: _DropHint(friend: vm.selectedFriend)),
+      ],
+    );
+
     return ResponsiveBuilder(
       builder: (sizingInformation) {
         if (sizingInformation.isMobile) {
           return Column(
             children: [
               FriendStrip(vm: vm, onSelect: _selectFriend, onEdit: _editFriend),
-              Expanded(child: panel),
+              Expanded(child: panelWithDropHint),
             ],
           );
         }
@@ -179,10 +187,54 @@ class _ChatTabState extends State<ChatTab> with Refena, WidgetsBindingObserver {
               child: FriendSidebar(vm: vm, onSelect: _selectFriend, onEdit: _editFriend),
             ),
             const ChatVerticalDivider(),
-            Expanded(child: panel),
+            Expanded(child: panelWithDropHint),
           ],
         );
       },
+    );
+  }
+}
+
+/// Covers the conversation while files are dragged over the chat tab, naming
+/// who they would go to.
+///
+/// Hidden again while a friend list row is hovered: that row is then the
+/// destination and highlights itself.
+class _DropHint extends StatelessWidget {
+  final Friend? friend;
+
+  const _DropHint({required this.friend});
+
+  @override
+  Widget build(BuildContext context) {
+    final drop = context.watch(chatDropProvider);
+    if (!drop.dragging || drop.hoveredFingerprint != null) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    return IgnorePointer(
+      child: Container(
+        color: theme.scaffoldBackgroundColor,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.file_download, size: 96),
+            const SizedBox(height: 20),
+            Text(
+              friend == null ? t.sendTab.placeItems : t.chatTab.dropToSend(name: friend!.displayName),
+              style: theme.textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              t.chatTab.dropOnFriend,
+              style: TextStyle(color: theme.colorScheme.outline),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
