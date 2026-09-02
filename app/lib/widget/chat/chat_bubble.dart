@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/model/persistence/chat_message.dart';
+import 'package:localsend_app/util/ui/snackbar.dart';
 import 'package:localsend_app/widget/dialogs/chat_files_dialog.dart';
 import 'package:localsend_isolates/util/file_size_helper.dart';
 
@@ -61,6 +63,7 @@ class ChatBubble extends StatelessWidget {
                     ChatMessageType.text => SelectableText(
                       message.text ?? '',
                       style: TextStyle(color: foreground),
+                      contextMenuBuilder: (_, state) => _textContextMenu(context, state),
                     ),
                     ChatMessageType.file || ChatMessageType.image => _FileContent(
                       message: message,
@@ -76,6 +79,32 @@ class ChatBubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// The built-in toolbar only offers "Copy" once something is selected; a bare
+  /// right click (or long press) gets an extra entry that copies the whole
+  /// message directly.
+  Widget _textContextMenu(BuildContext context, EditableTextState state) {
+    final buttonItems = [...state.contextMenuButtonItems];
+    if (state.textEditingValue.selection.isCollapsed) {
+      buttonItems.insert(
+        0,
+        ContextMenuButtonItem(
+          label: t.general.copy,
+          onPressed: () async {
+            state.hideToolbar();
+            await Clipboard.setData(ClipboardData(text: message.text ?? ''));
+            if (context.mounted) {
+              context.showSnackBar(t.general.copiedToClipboard);
+            }
+          },
+        ),
+      );
+    }
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: state.contextMenuAnchors,
+      buttonItems: buttonItems,
     );
   }
 }
