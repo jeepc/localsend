@@ -1994,6 +1994,15 @@ class Translations$dialogs$friendEdit$en {
 
   /// en: 'Ungrouped'
   String get noGroup => _root.chatTab.ungrouped;
+
+  /// en: 'IP Address'
+  String get ip => _root.dialogs.favoriteEditDialog.ip;
+
+  /// en: 'Port'
+  String get port => _root.dialogs.favoriteEditDialog.port;
+
+  /// en: 'Chat sends to this address when the device cannot be discovered on the network.'
+  String get addressHint => 'Chat sends to this address when the device cannot be discovered on the network.';
 }
 
 // Path: dialogs.friendDelete

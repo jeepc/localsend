@@ -87,3 +87,56 @@ class RemoveFriendAction extends AsyncReduxAction<FriendsService, List<Friend>> 
     return updated;
   }
 }
+
+/// Records where a friend was actually reached.
+///
+/// [Friend.lastIp] is what [ChatRefExt.resolveChatTarget] falls back to when
+/// discovery does not know the peer — which is exactly the situation on a
+/// network that swallows multicast. Written only when the friendship is made,
+/// that address goes stale with the next DHCP lease, and because the presence
+/// heartbeat probes the very same stale address, nothing can ever teach the app
+/// the new one again. Every confirmation and every incoming envelope refreshes
+/// it here instead.
+///
+/// A no-op when nothing changed: this runs on every re-confirmation, and a
+/// write goes to disk.
+class RefreshFriendAddressAction extends AsyncReduxAction<FriendsService, List<Friend>> {
+  final String fingerprint;
+  final String ip;
+  final int port;
+
+  /// The alias the peer reports right now, refreshed alongside the address.
+  /// Null leaves the stored one alone; a nickname always wins in the UI anyway.
+  final String? alias;
+
+  RefreshFriendAddressAction({
+    required this.fingerprint,
+    required this.ip,
+    required this.port,
+    this.alias,
+  });
+
+  @override
+  Future<List<Friend>> reduce() async {
+    final index = state.indexWhere((e) => e.fingerprint == fingerprint);
+    if (index == -1 || ip.isEmpty) {
+      await Future.microtask(() {});
+      return state;
+    }
+
+    final friend = state[index];
+    final newAlias = (alias == null || alias!.isEmpty) ? friend.alias : alias!;
+    if (friend.lastIp == ip && friend.lastPort == port && friend.alias == newAlias) {
+      await Future.microtask(() {});
+      return state;
+    }
+
+    final updated = List<Friend>.unmodifiable(
+      <Friend>[...state]..replaceRange(index, index + 1, [
+        friend.copyWith(lastIp: ip, lastPort: port, alias: newAlias),
+      ]),
+    );
+    await notifier._persistence.setFriends(updated);
+    return updated;
+  }
+}

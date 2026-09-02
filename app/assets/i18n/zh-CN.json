@@ -571,7 +571,10 @@
       "title": "编辑好友",
       "alias": "备注名",
       "network": "分组",
-      "noGroup": "@:chatTab.ungrouped"
+      "noGroup": "@:chatTab.ungrouped",
+      "ip": "@:dialogs.favoriteEditDialog.ip",
+      "port": "@:dialogs.favoriteEditDialog.port",
+      "addressHint": "当网络中发现不到该设备时，聊天会直接发往这个地址。"
     },
     "friendDelete": {
       "title": "删除好友",

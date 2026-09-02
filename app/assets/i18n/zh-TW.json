@@ -502,7 +502,10 @@
       "title": "編輯好友",
       "alias": "備註名稱",
       "network": "分組",
-      "noGroup": "@:chatTab.ungrouped"
+      "noGroup": "@:chatTab.ungrouped",
+      "ip": "@:dialogs.favoriteEditDialog.ip",
+      "port": "@:dialogs.favoriteEditDialog.port",
+      "addressHint": "當網路中找不到該裝置時，聊天會直接傳送到這個位址。"
     },
     "friendDelete": {
       "title": "刪除好友",

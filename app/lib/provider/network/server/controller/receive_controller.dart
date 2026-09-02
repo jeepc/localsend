@@ -58,6 +58,10 @@ final _logger = Logger('ReceiveController');
 class ReceiveController {
   final ServerUtils server;
 
+  /// Request IDs of the friend requests whose dialog is currently open, so a
+  /// resent request does not ask the user a second time.
+  final _openFriendRequests = <String>{};
+
   ReceiveController(this.server);
 
   /// A device registered itself on this server.
@@ -77,6 +81,28 @@ class ReceiveController {
   /// The Rust server already checked the PIN and enforces that only one
   /// session can be active at a time.
   Future<void> onPrepareUpload(HttpServerPrepareUploadEvent event) async {
+    final sessionId = event.sessionId;
+    final files = {
+      for (final entry in event.files.entries) entry.key: entry.value.toDart(),
+    };
+
+    // The fingerprint of the sender's mTLS certificate cannot be spoofed, unlike the
+    // self-reported fingerprint in the JSON payload which is only used as fallback
+    // when encryption is disabled.
+    final senderFingerprint = event.certFingerprint ?? event.info.fingerprint;
+
+    // Chat rides on the plain text transfer: a single text file whose *name*
+    // carries a marker the protocol itself never looks at. Handled before
+    // everything else, because a chat payload is complete in the request: it
+    // needs neither a destination nor a session, while the sender treats the
+    // answer itself as the delivery and waits for it with a timeout. The steps
+    // below — reading the settings, resolving the destination directory,
+    // replacing the session on screen — would only delay that answer and tear
+    // down an unrelated transfer that is still being displayed.
+    if (await _handleChatEnvelope(files.values.toList(), event, senderFingerprint)) {
+      return;
+    }
+
     if (server.getStateOrNull()?.session != null) {
       // The Rust server is the authority on the single-session invariant:
       // a new request means the old session is over (e.g. finished but still
@@ -87,15 +113,6 @@ class ReceiveController {
     final settings = server.ref.read(settingsProvider);
     final destinationDir = settings.destination ?? await getDefaultDestinationDirectory();
     final cacheDir = await getCacheDirectory();
-    final sessionId = event.sessionId;
-    final files = {
-      for (final entry in event.files.entries) entry.key: entry.value.toDart(),
-    };
-
-    // The fingerprint of the sender's mTLS certificate cannot be spoofed, unlike the
-    // self-reported fingerprint in the JSON payload which is only used as fallback
-    // when encryption is disabled.
-    final senderFingerprint = event.certFingerprint ?? event.info.fingerprint;
 
     _logger.info('Session Id: $sessionId');
     _logger.info('Destination Directory: $destinationDir');
@@ -134,14 +151,6 @@ class ReceiveController {
           sessionId: sessionId,
           statuses: {for (final file in files.values) file.id: FileStatus.queue},
         );
-
-    // Chat rides on the plain text transfer: a single text file whose *name*
-    // carries a marker the protocol itself never looks at. Handle those here
-    // and answer immediately, so the sender is not left waiting on a decision
-    // and no receive page pops up for what is really a chat bubble.
-    if (await _handleChatEnvelope(files.values.toList(), event, senderFingerprint)) {
-      return;
-    }
 
     bool quickSave = settings.quickSave && server.getState().session?.message == null;
     final quickSaveFromFavorites = settings.quickSaveFromFavorites && server.getState().session?.message == null;
@@ -282,8 +291,31 @@ class ReceiveController {
     final sender = event.info.toDevice(event.ip, withChannel: false).copyWith(fingerprint: senderFingerprint);
 
     // Accept nothing: the Rust server answers 204 and creates no session, so
-    // the sender is released immediately instead of waiting on a human.
-    await acceptFileRequest({});
+    // the sender is released immediately instead of waiting on a human. Sent
+    // before the envelope is acted upon, because the sender's timeout runs
+    // while a dialog would be open, and a message it gives up on is shown as
+    // undelivered even though it is being stored here.
+    server.ref
+        .redux(parentIsolateProvider)
+        .dispatch(IsolateHttpServerPrepareUploadDecisionAction(config: HttpServerReceiveConfig.acceptNothing(sessionId: event.sessionId)));
+
+    // The peer connected to us, so its source address is current by
+    // construction — the one refresh that still works when discovery finds
+    // nobody. After the answer above, because this writes to disk and the
+    // sender is waiting. A no-op unless the sender is a friend that moved.
+    final senderIp = sender.ip;
+    if (senderIp != null && senderIp.isNotEmpty) {
+      await server.ref
+          .redux(friendsProvider)
+          .dispatchAsync(
+            RefreshFriendAddressAction(
+              fingerprint: senderFingerprint,
+              ip: senderIp,
+              port: sender.port,
+              alias: sender.alias,
+            ),
+          );
+    }
 
     switch (envelope) {
       case ChatTextEnvelope():
@@ -311,6 +343,22 @@ class ReceiveController {
   }
 
   Future<void> _handleFriendRequest(FriendRequestEnvelope envelope, Device requester) async {
+    if (!_openFriendRequests.add(envelope.requestId)) {
+      // The sender resends a request it did not see answered, e.g. because its
+      // own timeout expired first. Stacking a second dialog on the same request
+      // would make the user answer it twice.
+      _logger.info('Ignoring friend request ${envelope.requestId}, it is already being answered.');
+      return;
+    }
+
+    try {
+      await _askForFriendRequest(envelope, requester);
+    } finally {
+      _openFriendRequests.remove(envelope.requestId);
+    }
+  }
+
+  Future<void> _askForFriendRequest(FriendRequestEnvelope envelope, Device requester) async {
     if (checkPlatformHasTray() && (await windowManager.isMinimized() || !(await windowManager.isVisible()) || !(await windowManager.isFocused()))) {
       await showFromTray();
     }

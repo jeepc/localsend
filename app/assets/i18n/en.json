@@ -572,7 +572,10 @@
       "title": "Edit friend",
       "alias": "Nickname",
       "network": "Group",
-      "noGroup": "@:chatTab.ungrouped"
+      "noGroup": "@:chatTab.ungrouped",
+      "ip": "@:dialogs.favoriteEditDialog.ip",
+      "port": "@:dialogs.favoriteEditDialog.port",
+      "addressHint": "Chat sends to this address when the device cannot be discovered on the network."
     },
     "friendDelete": {
       "title": "Remove friend",

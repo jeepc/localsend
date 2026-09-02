@@ -1618,6 +1618,12 @@ class Translations$dialogs$friendEdit$zh_TW extends Translations$dialogs$friendE
   String get network => '分組';
   @override
   String get noGroup => _root.chatTab.ungrouped;
+  @override
+  String get ip => _root.dialogs.favoriteEditDialog.ip;
+  @override
+  String get port => _root.dialogs.favoriteEditDialog.port;
+  @override
+  String get addressHint => '當網路中找不到該裝置時，聊天會直接傳送到這個位址。';
 }
 
 // Path: dialogs.friendDelete

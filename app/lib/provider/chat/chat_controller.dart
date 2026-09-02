@@ -12,6 +12,7 @@ import 'package:localsend_app/provider/chat/selected_friend_provider.dart';
 import 'package:localsend_app/provider/device_info_provider.dart';
 import 'package:localsend_app/provider/http_provider.dart';
 import 'package:localsend_app/provider/network/nearby_devices_provider.dart';
+import 'package:localsend_app/provider/settings_provider.dart';
 import 'package:localsend_app/util/chat_envelope.dart';
 import 'package:localsend_app/util/friends.dart';
 import 'package:localsend_isolates/model/device.dart';
@@ -30,14 +31,22 @@ import 'package:uuid/uuid.dart';
 const _uuid = Uuid();
 final _logger = Logger('Chat');
 
-/// Chat messages are auto-accepted by the peer, so a slow answer means the peer
-/// is gone rather than a human thinking about it.
-const _chatTimeoutMs = 8000;
+/// Bounds a chat request, which nobody has to accept by hand.
+///
+/// Generous, because the answer decides what the user is told: a peer that is
+/// merely slow — a phone whose app the system is thawing, a device answering
+/// while a transfer saturates the link — stores and shows the message anyway,
+/// so giving up early is what produces a message that is marked undelivered on
+/// one side and read on the other.
+const _chatTimeoutMs = 20000;
 
-/// Backoff before retrying a message the peer rejected because it was busy.
+/// Backoff before retrying a message that did not reach the peer.
 ///
 /// The Rust server allows only one upload session at a time, so a chat message
-/// sent while a file transfer runs gets a 409. That is transient by nature.
+/// sent while a file transfer runs gets a 409. That is transient by nature, and
+/// so is a timeout or a broken connection. Retrying is safe: the receiver keys
+/// messages, friend requests and answers by their id and ignores the ones it
+/// already has.
 const _retryDelays = [Duration(seconds: 2), Duration(seconds: 5)];
 
 /// Sends a chat text message to a friend, optimistically showing it right away.
@@ -369,6 +378,12 @@ enum ChatSendResult {
   /// transient, so it is worth retrying.
   busy,
 
+  /// The request did not produce an answer: it timed out, the connection broke
+  /// or the peer was not reachable at that moment. The peer may well have
+  /// received it, which is exactly why this is retried instead of reported —
+  /// the receiver drops the duplicate.
+  noAnswer,
+
   permanentFailure,
 }
 
@@ -401,7 +416,12 @@ extension ChatRefExt on Ref {
       ip: friend!.lastIp,
       version: '2.1',
       port: friend.lastPort,
-      https: true,
+      // Encryption is a global setting and both sides have to agree on it, so
+      // it describes the peer as well. Hardcoding https here made every send
+      // over the stored address fail once the user turned encryption off — and
+      // that address is only ever used when discovery already failed, which is
+      // why it stayed hidden.
+      https: read(settingsProvider).https,
       fingerprint: friend.fingerprint,
       alias: friend.alias,
       deviceModel: null,
@@ -411,11 +431,14 @@ extension ChatRefExt on Ref {
     );
   }
 
-  /// Sends an envelope, retrying while the peer reports it is busy.
+  /// Sends an envelope, retrying while the peer is busy or does not answer.
   ///
   /// A busy peer is transient by construction: the Rust server allows a single
   /// upload session at a time, so a chat payload sent during a file transfer is
-  /// rejected until that transfer ends.
+  /// rejected until that transfer ends. A missing answer is transient too — the
+  /// peer may have been thawing, or the answer was lost on the way back — and
+  /// resending is harmless because the receiver ignores an envelope it already
+  /// has.
   Future<bool> sendChatEnvelopeWithRetry(Device target, ChatEnvelope envelope) async {
     for (var attempt = 0; attempt <= _retryDelays.length; attempt++) {
       final result = await sendChatEnvelope(target, envelope);
@@ -495,6 +518,14 @@ extension ChatRefExt on Ref {
       }
       _logger.warning('Chat envelope rejected with status ${e.status}.');
       return ChatSendResult.permanentFailure;
+    } on rust_http.RsHttpClientError_Reqwest catch (e) {
+      // Timeout, refused connection, dropped connection: the peer never
+      // answered, but it may have acted on the request all the same.
+      _logger.warning('No answer from ${target.alias} for a chat envelope: ${e.field0}');
+      return ChatSendResult.noAnswer;
+    } on rust_http.RsHttpClientError_Io catch (e) {
+      _logger.warning('No answer from ${target.alias} for a chat envelope: ${e.field0}');
+      return ChatSendResult.noAnswer;
     } catch (e) {
       _logger.warning('Could not send a chat envelope to ${target.alias}', e);
       return ChatSendResult.permanentFailure;

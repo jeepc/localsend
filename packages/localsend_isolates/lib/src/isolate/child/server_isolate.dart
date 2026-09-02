@@ -85,6 +85,20 @@ class HttpServerReceiveConfig {
     required this.saveToGallery,
     required this.androidSdkInt,
   });
+
+  /// Accepts none of the offered files: the Rust server answers 204 ("read and
+  /// close") and creates no session, so no file is ever written.
+  ///
+  /// Everything below [fileNameMap] describes where files would be saved and is
+  /// therefore unused here. This exists so a caller that only wants to release
+  /// the sender — a chat payload, which is entirely contained in the request —
+  /// does not have to resolve a destination directory first.
+  HttpServerReceiveConfig.acceptNothing({required this.sessionId})
+    : fileNameMap = const {},
+      destinationDirectory = '',
+      cacheDirectory = '',
+      saveToGallery = false,
+      androidSdkInt = null;
 }
 
 /// Answers a pending [HttpServerPrepareUploadEvent].

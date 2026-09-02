@@ -43,6 +43,14 @@ import 'package:uuid/uuid.dart';
 const _uuid = Uuid();
 final _logger = Logger('Send');
 
+/// Backoff before asking a busy receiver again, for sessions nobody is
+/// watching.
+///
+/// The receiver allows a single session at a time, so a 409 says it is
+/// answering someone else right now — including the very transfer this one was
+/// queued behind. Kept in step with the chat retry in `chat_controller.dart`.
+const _busyRetryDelays = [Duration(seconds: 2), Duration(seconds: 5)];
+
 /// A chat bubble that is on screen as [ChatMessageStatus.sending] and still
 /// waits for the outcome of its transfer.
 ///
@@ -305,14 +313,15 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     );
 
     rust_http.PrepareUploadResult? response;
-    bool invalidPin;
+    bool retry;
     bool pinFirstAttempt = true;
+    int busyAttempt = 0;
     String? pin;
     final prepareUploadCancelToken = rust_cancel.createCancellationToken();
     _prepareUploadCancelTokens[sessionId] = prepareUploadCancelToken;
     try {
       do {
-        invalidPin = false;
+        retry = false;
         try {
           response = await client.prepareUpload(
             protocol: target.getProtocolType(),
@@ -328,7 +337,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
         } on rust_http.RsHttpClientError_StatusCode catch (e) {
           switch (e.status) {
             case 401:
-              invalidPin = true;
+              retry = true;
 
               // wait until animation is finished
               await sleepAsync(500);
@@ -354,6 +363,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
               }
               break;
             case 403:
+              _logger.info('${target.alias} declined the transfer.');
               state = state.updateSession(
                 sessionId: sessionId,
                 state: (s) => s?.copyWith(
@@ -362,6 +372,24 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
               );
               return;
             case 409:
+              // The receiver runs one session at a time, so it is busy with
+              // someone else — quite possibly with the transfer this one was
+              // queued behind. A background session is a chat send whose only
+              // trace is a bubble in the conversation, so it waits instead of
+              // marking those files undelivered right away. A foreground send
+              // has a page saying so and a user in front of it.
+              if (background && busyAttempt < _busyRetryDelays.length) {
+                final delay = _busyRetryDelays[busyAttempt++];
+                _logger.info('${target.alias} is busy with another session, retrying in ${delay.inSeconds}s.');
+                await sleepAsync(delay.inMilliseconds);
+                if (state[sessionId] == null) {
+                  // session has been canceled while waiting
+                  return;
+                }
+                retry = true;
+                break;
+              }
+              _logger.warning('${target.alias} is busy with another session.');
               state = state.updateSession(
                 sessionId: sessionId,
                 state: (s) => s?.copyWith(
@@ -370,6 +398,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
               );
               return;
             case 429:
+              _logger.warning('${target.alias} rejected the transfer: too many attempts.');
               state = state.updateSession(
                 sessionId: sessionId,
                 state: (s) => s?.copyWith(
@@ -378,6 +407,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
               );
               return;
             default:
+              _logger.warning('Prepare-upload to ${target.alias} failed with status ${e.status}: ${e.message}');
               state = state.updateSession(
                 sessionId: sessionId,
                 state: (s) => s?.copyWith(
@@ -388,6 +418,9 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
               return;
           }
         } catch (e) {
+          // Logged here because a background session has no page to show it on:
+          // its whole outcome is an undelivered bubble in the conversation.
+          _logger.warning('Prepare-upload to ${target.alias} (${target.ip}:${target.port}) failed', e);
           state = state.updateSession(
             sessionId: sessionId,
             state: (s) => s?.copyWith(
@@ -397,7 +430,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
           );
           return;
         }
-      } while (invalidPin);
+      } while (retry);
     } finally {
       _prepareUploadCancelTokens.remove(sessionId);
     }

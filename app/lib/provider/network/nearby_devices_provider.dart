@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:localsend_app/model/persistence/favorite_device.dart';
 import 'package:localsend_app/model/state/nearby_devices_state.dart';
+import 'package:localsend_app/provider/chat/friends_provider.dart';
 import 'package:localsend_app/provider/favorites_provider.dart';
 import 'package:localsend_app/provider/logging/discovery_logs_provider.dart';
 import 'package:localsend_isolates/isolate.dart';
@@ -18,6 +19,7 @@ final nearbyDevicesProvider = ReduxProvider<NearbyDevicesService, NearbyDevicesS
   return NearbyDevicesService(
     isolateController: ref.notifier(parentIsolateProvider),
     favoriteService: ref.notifier(favoritesProvider),
+    friendsService: ref.notifier(friendsProvider),
     discoveryLogs: ref.notifier(discoveryLoggerProvider),
   );
 });
@@ -25,15 +27,18 @@ final nearbyDevicesProvider = ReduxProvider<NearbyDevicesService, NearbyDevicesS
 class NearbyDevicesService extends ReduxNotifier<NearbyDevicesState> {
   final IsolateController _isolateController;
   final FavoritesService _favoriteService;
+  final FriendsService _friendsService;
   final DiscoveryLogger _discoveryLogger;
 
   NearbyDevicesService({
     required IsolateController isolateController,
     required FavoritesService favoriteService,
+    required FriendsService friendsService,
     required DiscoveryLogger discoveryLogs,
   }) : _discoveryLogger = discoveryLogs,
        _isolateController = isolateController,
-       _favoriteService = favoriteService;
+       _favoriteService = favoriteService,
+       _friendsService = friendsService;
 
   @override
   NearbyDevicesState init() => const NearbyDevicesState(
@@ -101,6 +106,22 @@ class RegisterDeviceAction extends AsyncReduxAction<NearbyDevicesService, Nearby
     } else {
       await Future.microtask(() {});
     }
+
+    // Teach the chat its friends' current address. A confirmation is proof that
+    // the device answers there, and it is the only address chat has once
+    // discovery stops finding the peer, e.g. on a network without multicast.
+    final ip = device.ip;
+    if (ip != null && ip.isNotEmpty) {
+      await external(notifier._friendsService).dispatchAsync(
+        RefreshFriendAddressAction(
+          fingerprint: device.fingerprint,
+          ip: ip,
+          port: device.port,
+          alias: device.alias,
+        ),
+      );
+    }
+
     return state.copyWith(
       devices: {...state.devices}..update(device.fingerprint, (_) => device, ifAbsent: () => device),
       // Every confirmation lands here, including the re-confirmations of an
