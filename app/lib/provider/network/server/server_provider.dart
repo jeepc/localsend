@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:localsend_app/gen/strings.g.dart';
 import 'package:localsend_app/model/cross_file.dart';
@@ -9,6 +10,7 @@ import 'package:localsend_app/provider/network/server/controller/send_controller
 import 'package:localsend_app/provider/network/server/server_utils.dart';
 import 'package:localsend_app/provider/settings_provider.dart';
 import 'package:localsend_app/util/alias_generator.dart';
+import 'package:localsend_app/util/native/web_pages_loader.dart';
 import 'package:localsend_isolates/constants.dart';
 import 'package:localsend_isolates/isolate.dart';
 import 'package:localsend_isolates/model/dto/multicast_dto.dart';
@@ -140,13 +142,16 @@ class ServerService extends Notifier<ServerState?> {
     _syncServerState(alias: alias, port: port, https: https, serverRunning: true, download: webSendState != null);
 
     final settings = ref.read(settingsProvider);
+    final webActive = webSendState != null || webUpload;
+    // Custom pages provided by the user next to the executable, if any.
+    final customWebPages = webActive ? await loadCustomWebPages() : null;
     final events = ref
         .redux(parentIsolateProvider)
         .dispatchTakeResult(
           IsolateHttpServerStartAction(
             pin: webUpload ? webPin : settings.receivePin,
             verifyChecksums: settings.verifyChecksums,
-            web: webSendState != null || webUpload
+            web: webActive
                 ? WebParams(
                     send: webSendState != null
                         ? WebSendParams(
@@ -168,7 +173,9 @@ class ServerService extends Notifier<ServerState?> {
                       files: t.web.files,
                       fileName: t.web.fileName,
                       size: t.web.size,
+                      dropHint: t.sendTab.placeItems,
                     ),
+                    pages: customWebPages,
                   )
                 : null,
             showToken: settings.showToken,
@@ -355,6 +362,63 @@ class ServerService extends Notifier<ServerState?> {
       case HttpServerWebFileDownloadEvent():
         // ignore: discarded_futures
         _sendController.onFileDownload(event);
+      case HttpServerListenerFailedEvent():
+        // ignore: discarded_futures
+        _restartAfterListenerFailure(event.error);
+    }
+  }
+
+  /// Restarts the server after its listening socket failed permanently,
+  /// e.g. because iOS reclaimed it while the app was suspended.
+  /// The Rust server has already stopped itself at this point.
+  Future<void> _restartAfterListenerFailure(String error) async {
+    _logger.warning('The server listener failed: $error. Restarting server.');
+    await _restartDeadServer();
+  }
+
+  bool _probeInFlight = false;
+
+  /// Restarts the server when it no longer accepts a loopback probe connection, e.g. because iOS invalidated the socket while the app was suspended.
+  Future<void> ensureRunning() async {
+    final current = state;
+    if (current == null || _probeInFlight) {
+      return;
+    }
+
+    _probeInFlight = true;
+    try {
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        current.port,
+        timeout: const Duration(seconds: 1),
+      );
+      socket.destroy();
+    } catch (e) {
+      _logger.warning('The server did not accept a probe connection: $e. Restarting server.');
+      await _restartDeadServer();
+    } finally {
+      _probeInFlight = false;
+    }
+  }
+
+  /// Restarts the server with its current configuration after its listening socket died.
+  Future<void> _restartDeadServer() async {
+    final current = state;
+    if (current == null) {
+      return;
+    }
+
+    try {
+      await restartServer(
+        alias: current.alias,
+        port: current.port,
+        https: current.https,
+        webSendState: current.webSendState?.copyWith(sessions: {}),
+        webUpload: current.webUpload,
+        webPin: current.webPin,
+      );
+    } catch (e) {
+      _logger.severe('Failed to restart the server after its listener failed', e);
     }
   }
 

@@ -252,6 +252,15 @@ sealed class RsServerEvent with _$RsServerEvent {
     /// Command-line arguments forwarded by the other application instance.
     required List<String> args,
   }) = RsServerEvent_Show;
+
+  /// The listening socket failed permanently, e.g. because the OS
+  /// invalidated it while the application was suspended (iOS reclaims the
+  /// sockets of suspended apps). The server has stopped itself; the
+  /// application must restart it to become reachable again.
+  const factory RsServerEvent.listenerFailed({
+    /// Description of the failure.
+    required String error,
+  }) = RsServerEvent_ListenerFailed;
 }
 
 enum SessionEndReasonV2 {
@@ -287,6 +296,7 @@ class WebI18n {
   final String files;
   final String fileName;
   final String size;
+  final String dropHint;
 
   const WebI18n({
     required this.waiting,
@@ -299,6 +309,7 @@ class WebI18n {
     required this.files,
     required this.fileName,
     required this.size,
+    required this.dropHint,
   });
 
   @override
@@ -312,7 +323,8 @@ class WebI18n {
       busy.hashCode ^
       files.hashCode ^
       fileName.hashCode ^
-      size.hashCode;
+      size.hashCode ^
+      dropHint.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -328,7 +340,32 @@ class WebI18n {
           busy == other.busy &&
           files == other.files &&
           fileName == other.fileName &&
-          size == other.size;
+          size == other.size &&
+          dropHint == other.dropHint;
+}
+
+class WebPages {
+  final String? downloadHtml;
+  final String? uploadHtml;
+  final String? error403Html;
+
+  const WebPages({
+    this.downloadHtml,
+    this.uploadHtml,
+    this.error403Html,
+  });
+
+  @override
+  int get hashCode => downloadHtml.hashCode ^ uploadHtml.hashCode ^ error403Html.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WebPages &&
+          runtimeType == other.runtimeType &&
+          downloadHtml == other.downloadHtml &&
+          uploadHtml == other.uploadHtml &&
+          error403Html == other.error403Html;
 }
 
 /// Configuration for the web pages served to browsers. When omitted, the web
@@ -346,19 +383,30 @@ class WebParams {
   /// Translations for the web pages, served via `/i18n.json`.
   final WebI18n i18N;
 
+  /// Custom HTML pages replacing the embedded web pages.
+  /// Pages left `null` (or the whole struct being `null`) are served from
+  /// the assets embedded at compile time.
+  final WebPages? pages;
+
   const WebParams({
     this.send,
     required this.upload,
     required this.i18N,
+    this.pages,
   });
 
   @override
-  int get hashCode => send.hashCode ^ upload.hashCode ^ i18N.hashCode;
+  int get hashCode => send.hashCode ^ upload.hashCode ^ i18N.hashCode ^ pages.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is WebParams && runtimeType == other.runtimeType && send == other.send && upload == other.upload && i18N == other.i18N;
+      other is WebParams &&
+          runtimeType == other.runtimeType &&
+          send == other.send &&
+          upload == other.upload &&
+          i18N == other.i18N &&
+          pages == other.pages;
 }
 
 /// Configuration for web send: files offered for download by web browsers.

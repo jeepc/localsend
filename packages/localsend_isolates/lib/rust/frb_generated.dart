@@ -2699,6 +2699,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  WebPages dco_decode_box_autoadd_web_pages(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_web_pages(raw);
+  }
+
+  @protected
   WebParams dco_decode_box_autoadd_web_params(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_web_params(raw);
@@ -2945,6 +2951,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_32(raw);
+  }
+
+  @protected
+  WebPages? dco_decode_opt_box_autoadd_web_pages(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_web_pages(raw);
   }
 
   @protected
@@ -3278,6 +3290,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return RsServerEvent_Show(
           args: dco_decode_list_String(raw[1]),
         );
+      case 9:
+        return RsServerEvent_ListenerFailed(
+          error: dco_decode_String(raw[1]),
+        );
       default:
         throw Exception('unreachable');
     }
@@ -3436,7 +3452,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   WebI18n dco_decode_web_i_18_n(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10) throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 11) throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return WebI18n(
       waiting: dco_decode_String(arr[0]),
       enterPin: dco_decode_String(arr[1]),
@@ -3448,6 +3464,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       files: dco_decode_String(arr[7]),
       fileName: dco_decode_String(arr[8]),
       size: dco_decode_String(arr[9]),
+      dropHint: dco_decode_String(arr[10]),
+    );
+  }
+
+  @protected
+  WebPages dco_decode_web_pages(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3) throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return WebPages(
+      downloadHtml: dco_decode_opt_String(arr[0]),
+      uploadHtml: dco_decode_opt_String(arr[1]),
+      error403Html: dco_decode_opt_String(arr[2]),
     );
   }
 
@@ -3455,11 +3484,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   WebParams dco_decode_web_params(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3) throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4) throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return WebParams(
       send: dco_decode_opt_box_autoadd_web_send_params(arr[0]),
       upload: dco_decode_bool(arr[1]),
       i18N: dco_decode_web_i_18_n(arr[2]),
+      pages: dco_decode_opt_box_autoadd_web_pages(arr[3]),
     );
   }
 
@@ -3982,6 +4012,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  WebPages sse_decode_box_autoadd_web_pages(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_web_pages(deserializer));
+  }
+
+  @protected
   WebParams sse_decode_box_autoadd_web_params(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_web_params(deserializer));
@@ -4312,6 +4348,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_u_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  WebPages? sse_decode_opt_box_autoadd_web_pages(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_web_pages(deserializer));
     } else {
       return null;
     }
@@ -4649,6 +4696,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 8:
         var var_args = sse_decode_list_String(deserializer);
         return RsServerEvent_Show(args: var_args);
+      case 9:
+        var var_error = sse_decode_String(deserializer);
+        return RsServerEvent_ListenerFailed(error: var_error);
       default:
         throw UnimplementedError('');
     }
@@ -4810,6 +4860,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_files = sse_decode_String(deserializer);
     var var_fileName = sse_decode_String(deserializer);
     var var_size = sse_decode_String(deserializer);
+    var var_dropHint = sse_decode_String(deserializer);
     return WebI18n(
       waiting: var_waiting,
       enterPin: var_enterPin,
@@ -4821,7 +4872,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       files: var_files,
       fileName: var_fileName,
       size: var_size,
+      dropHint: var_dropHint,
     );
+  }
+
+  @protected
+  WebPages sse_decode_web_pages(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_downloadHtml = sse_decode_opt_String(deserializer);
+    var var_uploadHtml = sse_decode_opt_String(deserializer);
+    var var_error403Html = sse_decode_opt_String(deserializer);
+    return WebPages(downloadHtml: var_downloadHtml, uploadHtml: var_uploadHtml, error403Html: var_error403Html);
   }
 
   @protected
@@ -4830,7 +4891,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_send = sse_decode_opt_box_autoadd_web_send_params(deserializer);
     var var_upload = sse_decode_bool(deserializer);
     var var_i18N = sse_decode_web_i_18_n(deserializer);
-    return WebParams(send: var_send, upload: var_upload, i18N: var_i18N);
+    var var_pages = sse_decode_opt_box_autoadd_web_pages(deserializer);
+    return WebParams(send: var_send, upload: var_upload, i18N: var_i18N, pages: var_pages);
   }
 
   @protected
@@ -5468,6 +5530,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_web_pages(WebPages self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_web_pages(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_web_params(WebParams self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_web_params(self, serializer);
@@ -5756,6 +5824,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_web_pages(WebPages? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_web_pages(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_web_params(WebParams? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -6023,6 +6101,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case RsServerEvent_Show(args: final args):
         sse_encode_i_32(8, serializer);
         sse_encode_list_String(args, serializer);
+      case RsServerEvent_ListenerFailed(error: final error):
+        sse_encode_i_32(9, serializer);
+        sse_encode_String(error, serializer);
     }
   }
 
@@ -6160,6 +6241,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.files, serializer);
     sse_encode_String(self.fileName, serializer);
     sse_encode_String(self.size, serializer);
+    sse_encode_String(self.dropHint, serializer);
+  }
+
+  @protected
+  void sse_encode_web_pages(WebPages self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.downloadHtml, serializer);
+    sse_encode_opt_String(self.uploadHtml, serializer);
+    sse_encode_opt_String(self.error403Html, serializer);
   }
 
   @protected
@@ -6168,6 +6258,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_web_send_params(self.send, serializer);
     sse_encode_bool(self.upload, serializer);
     sse_encode_web_i_18_n(self.i18N, serializer);
+    sse_encode_opt_box_autoadd_web_pages(self.pages, serializer);
   }
 
   @protected
@@ -6390,6 +6481,11 @@ class RsDiscoveryImpl extends RustOpaque implements RsDiscovery {
 
   /// Emits a [RsStoredDevice] for every device confirmation until the
   /// discovery is stopped. Can only be listened to once.
+  ///
+  /// Also ends when the multicast sockets failed permanently (e.g. because
+  /// the OS invalidated them while the application was suspended): the
+  /// application reacts to the ended stream by starting a new discovery,
+  /// which rebinds the sockets.
   ///
   /// Also returns when the Dart side of the stream is gone (e.g. after a
   /// hot restart), so this call does not keep the discovery alive forever.

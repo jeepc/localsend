@@ -157,7 +157,7 @@ Future<RefenaContainer> preInit(List<String> args) async {
   await container.redux(chatProvider).dispatchAsync(FailInterruptedMessagesAction());
 
   // initialize multi-threading
-  container.set(
+  await container.set(
     parentIsolateProvider.overrideWithNotifier((ref) {
       final settings = ref.read(settingsProvider);
       return IsolateController(
