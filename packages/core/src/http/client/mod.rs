@@ -227,6 +227,12 @@ pub(super) fn create_reqwest_client(
     let mut builder = reqwest::Client::builder()
         .tls_backend_preconfigured(tls_config)
         .tls_info(true)
+        // Peers live on the LAN and are always reached directly. A system or
+        // environment proxy would not only detour that traffic, it would also
+        // break the peer identity check: reqwest never attaches `TlsInfo` to a
+        // response received over a proxy tunnel, so `verify_cert_from_res`
+        // would fail with "TLS info not found".
+        .no_proxy()
         .dns_resolver(Arc::new(ScopedHostResolver));
 
     if let Some(timeout) = timeout {

@@ -50,6 +50,9 @@ impl LsHttpClientV2 {
             .use_rustls_tls()
             .danger_accept_invalid_certs(true)
             .tls_info(true)
+            // See `create_reqwest_client`: LAN peers are reached directly, and
+            // a proxy tunnel would strip the `TlsInfo` extension.
+            .no_proxy()
             .build()?;
 
         Ok(Self { client })
